@@ -1,8 +1,8 @@
-// dodge-web: tiny fixture game for the playloop harness. Contract: docs/superpowers/specs (Probe contract).
+// dodge-web: tiny fixture game for the playbench harness. Contract: docs/superpowers/specs (Probe contract).
 // URL switches: ?bug=softlock|crash|deadinput, ?noprobe, ?nobot
 const q = new URLSearchParams(location.search), bug = q.get('bug');
 const cv = document.getElementById('game'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
-const PS = (window.__playloop?.overrides ?? {}).player_speed ?? 4; // px per frame at 60 fps
+const PS = (window.__playbench?.overrides ?? {}).player_speed ?? 4; // px per frame at 60 fps
 const PW = 16, PY = H - PW - 4, PCY = PY + PW / 2, WIN_S = 20;
 const hero = new Image(); hero.src = 'art/hero_placeholder.png';
 let kinds = null, timers = [], enemies = [], started = false, over = false, won = false, playT = 0, px = W / 2, last = null;

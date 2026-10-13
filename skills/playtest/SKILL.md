@@ -3,14 +3,14 @@ name: playtest
 description: Use after implementing any game feature, before ticking a gate, or when the user asks to playtest, smoke test, check for softlocks or crashes, or compare builds
 allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, Glob, Grep
 ---
-!`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playloop: no working Python 3 found"`
+!`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"`
 
 # Playtest: bots play the real build
 
 The status block above gives `RUN`, `PLUGIN`, `BUILD`, `ENGINE`, `CODING`, `AI_POLICY`, `STAGE`, `REQUIRED` and `SIZES`.
 - If it says no working Python, ask the user to install Python 3.11+ and stop.
 - If `PLAYWRIGHT=no` and the engine is web, show the `INSTALL` line and ask before running it.
-- If `INIT=no`, use `BUILD` from detect (or `.`) and the default sizes. Suggest `/playloop:studio` once, after the run.
+- If `INIT=no`, use `BUILD` from detect (or `.`) and the default sizes. Suggest `/playbench:studio` once, after the run.
 
 ## 1. Pick the mode
 | Mode | When | Size |
@@ -55,7 +55,7 @@ Tier 0 sees only the screen. Tier 1 reads state (softlock, real dead-input check
   - Godot: `probe_state()`, `probe_seed(seed)`, `probe_actions()` and `probe_bot(state)` on the main scene's root.
   - Keep the state small. **No timers or clocks in state**, so it can freeze when the game does. `paused` must be true on title screens, menus and cutscenes.
   - The bot is a simple heuristic (move away from the nearest threat, toward the goal). It does not need to be good, just goal-directed.
-  - Move tunable numbers into `data/*.csv` or `*.json` and list them in `design/design.md` under `## Knobs`, so balance sweeps can reach them. Bundled ones read `(window.__playloop?.overrides ?? {}).<name> ?? <default>`.
+  - Move tunable numbers into `data/*.csv` or `*.json` and list them in `design/design.md` under `## Knobs`, so balance sweeps can reach them. Bundled ones read `(window.__playbench?.overrides ?? {}).<name> ?? <default>`.
 - **coding 3:** explain this contract and review the human's adapter. Don't write it.
 
 Rerun the same quick playtest after the upgrade and report the new tier.

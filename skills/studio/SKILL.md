@@ -1,15 +1,15 @@
 ---
 name: studio
-description: Use when starting or resuming a game project, when the user asks what to do next, about project status, gates, playtest debt, jam deadline, or to set up playloop for jam/hobby/team/class use.
+description: Use when starting or resuming a game project, when the user asks what to do next, about project status, gates, playtest debt, jam deadline, or to set up playbench for jam/hobby/team/class use.
 allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, Glob, Grep
 ---
-!`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playloop: no working Python 3 found"`
+!`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"`
 
-# playloop studio
+# playbench studio
 
 The block above is `status` output for the current folder (the game repo), as `KEY=value` lines. Read it before you say anything. Scripts run as `<RUN> "<PLUGIN>/scripts/<x>.py" ...`, using the `RUN` and `PLUGIN` values exactly as printed, with the path in quotes.
 
-If the block says `playloop: no working Python 3 found` (or `RUN=NONE`), tell the user to install Python 3.11+ from python.org and stop.
+If the block says `playbench: no working Python 3 found` (or `RUN=NONE`), tell the user to install Python 3.11+ from python.org and stop.
 
 ## If INIT=no: set up in a few short questions
 
@@ -54,10 +54,10 @@ Say it in 3-5 plain lines, adapted to `CONTEXT` and `CODING`:
 Then offer `NEXT` as a one-line question ("Want me to do that now?").
 
 ## Routing
-- Idea, theme, scope, the one-page design: `/playloop:design`.
-- After every feature, before ticking a gate, or when something feels broken: `/playloop:playtest` (quick after each feature; milestone or final when `REQUIRED` lists them; sizes from `SIZES`).
-- Tuning numbers or difficulty: `/playloop:balance`, only if `BALANCE=on` or the user asks for it (jams have it off).
-- Release, itch/Steam/web, AI-art disclosure, gate audit: `/playloop:ship`.
+- Idea, theme, scope, the one-page design: `/playbench:design`.
+- After every feature, before ticking a gate, or when something feels broken: `/playbench:playtest` (quick after each feature; milestone or final when `REQUIRED` lists them; sizes from `SIZES`).
+- Tuning numbers or difficulty: `/playbench:balance`, only if `BALANCE=on` or the user asks for it (jams have it off).
+- Release, itch/Steam/web, AI-art disclosure, gate audit: `/playbench:ship`.
 
 ## Hard rules
 - **Never tick a gate box.** Never write `[x]` into `gates.md`, not even when asked. Tell the human which box they can tick, and say to commit `gates.md` so `ship gate` can show who ticked it.

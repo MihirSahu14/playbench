@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""playloop ship: artgate, gate, itch, steam, web.
+"""playbench ship: artgate, gate, itch, steam, web.
 Never runs butler or steamcmd; it only prints the commands for the human to run.
 Exit codes: 0 pass, 1 blocked, 2 usage or environment error."""
 import argparse, contextlib, fnmatch, io, json, os, posixpath, re, shutil, struct, subprocess, sys, tempfile, zipfile, zlib
@@ -22,7 +22,7 @@ TAG = re.compile(r'_(placeholder|ai|wip)(?=\.[^.]+$)', re.I)
 KEYS = {b'parameters', b'prompt', b'workflow'}
 ABS = re.compile(r"""(?:src|href)\s*=\s*["']/(?!/)|url\(\s*["']?/(?!/)|fetch\(\s*["']/(?!/)""")
 ASSET = re.compile(r"""["']([\w./-]+\.(?:png|jpe?g|webp|gif|svg|ogg|mp3|wav|json|csv|js|css|wasm|pck|html))["']""")
-# excluded only when build_dir is the game root, so playloop state and dotfiles (.env) never reach an upload
+# excluded only when build_dir is the game root, so playbench state and dotfiles (.env) never reach an upload
 SKIP = {'build', 'playtests', 'steam', 'store', 'balance', 'design'}
 SKIP_FILES = {'studio.json', 'gates.md', 'disclosure.md', 'art/PLACEHOLDERS.json'}
 MB = 1_000_000  # ponytail: decimal MB, the stricter reading of itch's limits
@@ -305,7 +305,7 @@ def steam(game, real=False):
 
     def write(preview):
         vdf.parent.mkdir(exist_ok=True)
-        vdf.write_text(f'"AppBuild"\n{{\n "AppID" "{s["appid"]}"\n "Desc" "playloop build"\n "Preview" "{preview}"\n'
+        vdf.write_text(f'"AppBuild"\n{{\n "AppID" "{s["appid"]}"\n "Desc" "playbench build"\n "Preview" "{preview}"\n'
                        f' "ContentRoot" "{build.as_posix()}"\n "BuildOutput" "{vdf.parent.as_posix()}/output/"\n'
                        f' "Depots"\n {{\n  "{s["depotid"]}"\n  {{\n'
                        '   "FileMapping" { "LocalPath" "*" "DepotPath" "." "recursive" "1" }\n  }\n }\n}\n', encoding='utf-8')
@@ -472,7 +472,7 @@ def selftest():
 def main(argv=None):
     with contextlib.suppress(AttributeError):
         sys.stdout.reconfigure(errors='replace')
-    ap = argparse.ArgumentParser(prog='ship.py', description='playloop release checks; prints, never runs, upload commands.')
+    ap = argparse.ArgumentParser(prog='ship.py', description='playbench release checks; prints, never runs, upload commands.')
     ap.add_argument('cmd', choices=['artgate', 'gate', 'itch', 'steam', 'web', 'selftest'])
     ap.add_argument('game_dir', nargs='?', default='.')
     ap.add_argument('--dirs', help='artgate: comma-separated dirs relative to the game (default: build_dir,store)')

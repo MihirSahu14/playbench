@@ -1,4 +1,4 @@
-"""playloop playtest harness: bots play the real build (web via Playwright, Godot native experimental).
+"""playbench playtest harness: bots play the real build (web via Playwright, Godot native experimental).
 
     playtest.py run <build> [--mode M] [--bot B] [--seeds N] [--seconds S] [--override F:K=V | NAME=V]...
                             [--realtime] [--coop] [--out DIR]
@@ -28,7 +28,7 @@ CANNOT_JUDGE = "Bots cannot judge fun, clarity or feel. A human playtest is stil
 REPLAY_S, EPOCH = 3, datetime(2026, 1, 1)
 
 # Injected before any game script: seed, overrides, seeded Math.random (mulberry32) and the state reader.
-PROBE_JS = """(()=>{const P=window.__playloop=__CFG__;let a=P.seed>>>0;
+PROBE_JS = """(()=>{const P=window.__playbench=__CFG__;let a=P.seed>>>0;
 Math.random=()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
 P.read=()=>{try{const g=window.__game;
  if(g&&typeof g.state==='function')return g.state();
@@ -36,7 +36,7 @@ P.read=()=>{try{const g=window.__game;
  if(typeof window.render_game_to_text==='function')return JSON.parse(window.render_game_to_text());
  if(window.__GAME_STATE__!==undefined)return window.__GAME_STATE__;
  return null}catch(e){return {__error:String(e&&e.message||e)}}};})();"""
-STEP_JS = """b=>{let s=window.__playloop.read(),k=null;
+STEP_JS = """b=>{let s=window.__playbench.read(),k=null;
 if(b&&s&&!s.__error)try{k=window.__game.bot(s)}catch(e){s={__error:'bot(): '+(e&&e.message||e)}}return [s,k]}"""
 
 

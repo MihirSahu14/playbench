@@ -1,9 +1,9 @@
-# playloop: Research Summary (2026-10-13)
+# playbench: Research Summary (2026-10-13)
 
-This pulls together the research loop behind `playloop` and records the facts its blocking checks depend on. Earlier notes: [studio pipeline](2026-10-13-studio-pipeline.md), [playtesting cadence](2026-10-13-playtesting-cadence.md), [market fit](2026-10-13-market-fit.md).
+This pulls together the research loop behind `playbench` and records the facts its blocking checks depend on. Earlier notes: [studio pipeline](2026-10-13-studio-pipeline.md), [playtesting cadence](2026-10-13-playtesting-cadence.md), [market fit](2026-10-13-market-fit.md).
 
 ## Product conclusion
-- **Writing design docs is a commodity.** Claude Code Game Studios already does it for free, and it has 26k stars. Its own author found that the "30 docs before code" tier ranked last. playloop therefore keeps design to one discussion and one page.
+- **Writing design docs is a commodity.** Claude Code Game Studios already does it for free, and it has 26k stars. Its own author found that the "30 docs before code" tier ranked last. playbench therefore keeps design to one discussion and one page.
 - **The value is in harnesses that run things.** That means bots that play the real build after each feature, balance sweeps on the real build and data, and a ship step that blocks undisclosed placeholder or AI art and shows who ticked the release gate.
 - **v1 is web-first and Godot-second.**
   - Every engine can export HTML5, and jams judge the browser build.
@@ -32,7 +32,7 @@ This pulls together the research loop behind `playloop` and records the facts it
 - None of godot, butler or steamcmd is on PATH, and `$GODOT` is empty. Godot native stays **experimental** until the user approves downloading the portable editor and the spike passes.
 
 ## Competitors and adjacent tools
-| Tool | What it does | playloop's angle |
+| Tool | What it does | playbench's angle |
 |---|---|---|
 | Claude Code Game Studios | 49 agents, document-heavy pipeline | One page of design. The effort goes into harnesses |
 | develop-web-game (OpenAI), game-qa, game-creator (`__GAME_STATE__`) | Playwright loops for web games | We accept their hooks as T1. We add tiers, softlock and dead-input detectors that use deterministic replay, statistics reported only when a policy bot plays, real-build sweeps, and ship gates. (The game-creator hook name comes from earlier research; its repo URL has not been re-verified) |

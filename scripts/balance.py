@@ -1,4 +1,4 @@
-"""playloop balance: sweep one knob on the real build with the policy bot.
+"""playbench balance: sweep one knob on the real build with the policy bot.
 
 balance.py sweep <game_dir> --knob NAME [--values a,b,c] [--seeds N] [--seconds S]
 balance.py selftest

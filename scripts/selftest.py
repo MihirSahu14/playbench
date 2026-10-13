@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run every playloop script's selftest, then `claude plugin validate . --strict`. Exit 1 on any failure."""
+"""Run every playbench script's selftest, then `claude plugin validate . --strict`. Exit 1 on any failure."""
 import shutil, subprocess, sys
 from pathlib import Path
 

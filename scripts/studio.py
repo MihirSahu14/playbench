@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""playloop studio: detect the engine, init studio.json + gates.md, print status.
+"""playbench studio: detect the engine, init studio.json + gates.md, print status.
 
 Usage: studio.py detect|init|status|selftest [game_dir] [flags]
 Stdlib only. Never writes a ticked box into gates.md.
@@ -178,15 +178,15 @@ def status(d):
     if not gates.exists():
         nxt = "gates.md is missing: rerun studio init --force"
     elif stage == "shipped":
-        nxt = "every gate is ticked: run /playloop:ship for the upload command"
+        nxt = "every gate is ticked: run /playbench:ship for the upload command"
     elif not (d / "design" / "design.md").exists():
-        nxt = "run /playloop:design to write the one-page design"
+        nxt = "run /playbench:design to write the one-page design"
     elif not pw and cfg.get("engine") == "web":
         nxt = f"install playwright (ask first): {install}"
     elif dq_over:
-        nxt = "run a quick playtest (/playloop:playtest) before building more"
+        nxt = "run a quick playtest (/playbench:playtest) before building more"
     elif missing:
-        nxt = f"run a {missing[0]} playtest (/playloop:playtest) before ticking {stage} boxes"
+        nxt = f"run a {missing[0]} playtest (/playbench:playtest) before ticking {stage} boxes"
     else:
         nxt = "build the next must-list feature, then run a quick playtest"
     print(f"NEXT={nxt}")
@@ -237,7 +237,7 @@ def init(a):
     old = gi.read_text("utf-8") if gi.exists() else ""
     if "playtests/shots/" not in old.splitlines():
         gi.write_text(old + ("" if old.endswith("\n") or not old else "\n") + "playtests/shots/\n", "utf-8", newline="\n")
-    print(f"wrote {sj} and {gm} ({a.context}: {' -> '.join(p['stages'])}). Next: /playloop:design")
+    print(f"wrote {sj} and {gm} ({a.context}: {' -> '.join(p['stages'])}). Next: /playbench:design")
     return 0
 
 
@@ -350,7 +350,7 @@ def selftest():
             assert all(k in st for k in keys) and "UNTICKED:" in out, (ctx, out)
             assert st["RUN"] in ("python", "py -3", "python3", "NONE") and ("INSTALL" in st) == (st["PLAYWRIGHT"] == "no")
             assert ("ALLOWED" in st) == (ctx == "learn") and st["STAGE"] == PROFILE[ctx]["stages"][0]
-            assert "run /playloop:design" in st["NEXT"]
+            assert "run /playbench:design" in st["NEXT"]
             if outside_git:
                 assert st["DEBT_QUICK"].startswith("n/a")
         assert kv(call("status", str(tmp / "jam2"))[1])["DEADLINE"].endswith("h left")

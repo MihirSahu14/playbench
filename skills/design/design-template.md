@@ -28,7 +28,7 @@ Budget: <h> h (must total: <h> h)
 ## Knobs
 | name | file | key | min | max |
 |---|---|---|---|---|
-| <!-- file "-" = bundled, read via window.__playloop.overrides.<name>; CSV key = <id>.<column> or *.<column>; JSON key = dotted.path --> | | | | |
+| <!-- file "-" = bundled, read via window.__playbench.overrides.<name>; CSV key = <id>.<column> or *.<column>; JSON key = dotted.path --> | | | | |
 | <knob_name> | <data/file.csv or -> | <key> | <min> | <max> |
 
 ## Decision

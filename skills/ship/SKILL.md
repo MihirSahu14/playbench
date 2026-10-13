@@ -3,7 +3,7 @@ name: ship
 description: Use when the user wants to release, upload, publish, or submit a game to itch.io, Steam or the web, check AI-art disclosure, prepare store assets, or audit release gates.
 allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, Glob, Grep
 ---
-!`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playloop: no working Python 3 found"`
+!`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"`
 
 # Ship: release checks, printed upload commands
 

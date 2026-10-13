@@ -3,7 +3,7 @@ name: balance
 description: Use when the user wants to tune game numbers, check difficulty, compare knob values, or asks whether something is too hard or too easy.
 allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, Glob, Grep
 ---
-!`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playloop: no working Python 3 found"`
+!`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"`
 
 # Balance: sweep one knob on the real build
 
@@ -20,7 +20,7 @@ Read `design/design.md` and show its `## Knobs` table (`| name | file | key | mi
 
 If the number they care about isn't in the table, offer to make it a knob (one question, default yes):
 - **Preferred:** move it into a data file the game fetches (CSV or JSON), then add a row, e.g. `| bat_speed | data/enemies.csv | bat.speed | 1 | 5 |`. CSV keys are `<first-column value>.<column>` or `*.<column>`; JSON keys are dotted paths.
-- **Bundled number:** read it as `(window.__playloop?.overrides ?? {}).<name> ?? <default>` and add a row with file `-`.
+- **Bundled number:** read it as `(window.__playbench?.overrides ?? {}).<name> ?? <default>` and add a row with file `-`.
 - Who writes it, by `CODING`:
   - 1: Claude makes the change and says so in one line.
   - 2: Claude makes the change and asks the human to review the diff.

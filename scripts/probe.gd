@@ -1,5 +1,5 @@
 extends SceneTree
-# playloop probe for native Godot 4 (experimental until verified on a real Godot binary).
+# playbench probe for native Godot 4 (experimental until verified on a real Godot binary).
 # Launched by playtest.py:
 #   godot --headless --path <proj> --script probe.gd --fixed-fps 60 --quit-after <n> -- seed=1 bot=random step=6 frames=600 hold=
 # The main scene's root may define probe_state(), probe_seed(seed), probe_actions() and probe_bot(state).

@@ -1,8 +1,19 @@
 {
-  "name": "playloop",
+  "name": "playbench",
   "version": "0.1.0",
   "description": "Bots play your real game build after every feature, balance sweeps on the real build, and itch/Steam release gates that block undisclosed AI/placeholder art. Lean one-page design. Adapts to jam, hobby, team or classroom use.",
-  "author": {"name": "Mihir Sahu"},
+  "author": {
+    "name": "Mihir Sahu"
+  },
   "license": "MIT",
-  "keywords": ["gamedev", "playtest", "itch", "steam", "godot", "balance"]
+  "keywords": [
+    "gamedev",
+    "playtest",
+    "itch",
+    "steam",
+    "godot",
+    "balance"
+  ],
+  "homepage": "https://github.com/MihirSahu14/playbench",
+  "repository": "https://github.com/MihirSahu14/playbench"
 }

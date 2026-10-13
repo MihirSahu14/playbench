@@ -1,10 +1,10 @@
-# playloop: Design Spec
+# playbench: Design Spec
 
 **Date:** 2026-10-13. This spec replaces `2026-10-13-game-studio-v1-design.md`, which has been deleted.
-**Research:** [playloop research](../../research/2026-10-13-playloop-research.md), [pipeline](../../research/2026-10-13-studio-pipeline.md), [cadence](../../research/2026-10-13-playtesting-cadence.md), [market](../../research/2026-10-13-market-fit.md)
+**Research:** [playbench research](../../research/2026-10-13-playbench-research.md), [pipeline](../../research/2026-10-13-studio-pipeline.md), [cadence](../../research/2026-10-13-playtesting-cadence.md), [market](../../research/2026-10-13-market-fit.md)
 
 ## Goal
-playloop is a Claude Code plugin that plays your real game build with bots. It works on any HTML5 export, and on native headless Godot in experimental form, through one engine-neutral probe contract. It sweeps balance knobs on that same build. It blocks itch and Steam releases until placeholder or AI art is disclosed and a human has ticked the release gate. Design stays at one discussion and one page. The flow adapts to jam, hobby, team or classroom use, and to how much the user codes.
+playbench is a Claude Code plugin that plays your real game build with bots. It works on any HTML5 export, and on native headless Godot in experimental form, through one engine-neutral probe contract. It sweeps balance knobs on that same build. It blocks itch and Steam releases until placeholder or AI art is disclosed and a human has ticked the release gate. Design stays at one discussion and one page. The flow adapts to jam, hobby, team or classroom use, and to how much the user codes.
 
 v1 is **web-first, Godot-second**. The SKILL asks for a quick playtest after every feature, and `status` shows any gap. No hook runs it automatically in v1.
 
@@ -75,7 +75,7 @@ README.md
 
 ### Script invocation and Python discovery
 - Every SKILL starts with a dynamic-context line:
-  `` !`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playloop: no working Python 3 found"` ``
+  `` !`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"` ``
   The paths are quoted because install paths contain spaces. Task 1 of the plan is a spike that confirms the substitution and the shell. If `${CLAUDE_PLUGIN_ROOT}` is not substituted, the line uses `${CLAUDE_SKILL_DIR}/../../scripts/`.
 - `status` probes `python`, then `py -3`, then `python3`. It prints `RUN=<launcher>`, choosing the first launcher that can import playwright, or else the first one that works. Every later Bash command in a SKILL uses `<RUN> "<plugin>/scripts/x.py" …`.
 - Each SKILL's `allowed-tools` lists `Bash(python:*)` and `Bash(py:*)`. These are static patterns that match both launchers, so playtests run without permission prompts. Absolute interpreter paths are never used.
@@ -98,9 +98,9 @@ Hooks accepted as T1 fallbacks:
 - `window.render_game_to_text()`, whose JSON string the harness parses (from develop-web-game).
 - `window.__GAME_STATE__` (from game-creator).
 
-Before any game script runs, the harness injects `window.__playloop = {seed, overrides: {<name>: value}}` and replaces `Math.random` with a mulberry32 PRNG seeded from `seed`. A game with bundled tunables reads them like this:
+Before any game script runs, the harness injects `window.__playbench = {seed, overrides: {<name>: value}}` and replaces `Math.random` with a mulberry32 PRNG seeded from `seed`. A game with bundled tunables reads them like this:
 
-`(window.__playloop?.overrides ?? {}).<name> ?? <default>`
+`(window.__playbench?.overrides ?? {}).<name> ?? <default>`
 
 **Godot native.** The main scene's root node may define:
 - `probe_state() -> Dictionary`
@@ -165,7 +165,7 @@ run(build, mode="quick", bot=None, seeds=None, seconds=None, overrides=None,
 - **`overrides`** is a list of `{"name", "file"|None, "key", "value"}`. When `file` is set, `page.route` serves a modified copy of that file:
   - CSV files are read as `utf-8-sig`, with the delimiter found by `csv.Sniffer`. The key is either `<first-column value>.<column>` or `*.<column>`.
   - JSON files take a dotted path as the key.
-  - Every override, with or without a file, is also exposed in `__playloop.overrides[name]`.
+  - Every override, with or without a file, is also exposed in `__playbench.overrides[name]`.
 - **`out_dir`:** when it is set, the run writes `<out_dir>/<YYYY-MM-DD-HHMM>-<mode>.json` and `.md`, plus a `shots/` folder. When it is `None`, the run only returns the dict.
 - **Engine:** if `project.godot` is in `build`, the run uses the Godot transport. The Godot binary comes from `$GODOT`, then from `godot` on PATH. If neither is found, the run raises `SystemExit(2)` with a hint.
 
@@ -276,7 +276,7 @@ Every report states what bots cannot judge.
 
 ## Balance (v1: sweep)
 `balance.py sweep <game_dir> --knob <name> [--values a,b,c] [--seeds] [--seconds]`
-1. Reads the `## Knobs` table in `design/design.md`, which has the columns `name | file | key | min | max`. A `file` of `-` means the value is bundled and reached only through `__playloop.overrides`.
+1. Reads the `## Knobs` table in `design/design.md`, which has the columns `name | file | key | min | max`. A `file` of `-` means the value is bundled and reached only through `__playbench.overrides`.
 2. If no values are given, it uses 5 evenly spaced values from min to max.
 3. For each value it calls `playtest.run(build, mode="sweep", bot="policy", overrides=[…])`.
 4. It refuses to run, with exit 2, unless the result is tier 2, because random-input sweeps are noise.
