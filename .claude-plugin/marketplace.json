@@ -1,0 +1,16 @@
+{
+  "name": "playloop",
+  "owner": {
+    "name": "Mihir Sahu"
+  },
+  "metadata": {
+    "description": "playloop: AI playtesting, balance sweeps and release gates for game developers."
+  },
+  "plugins": [
+    {
+      "name": "playloop",
+      "source": "./",
+      "description": "Bots play your real game build after every feature, balance sweeps on the real build, and itch/Steam release gates that block undisclosed AI/placeholder art. Lean one-page design. Adapts to jam, hobby, team or classroom use."
+    }
+  ]
+}

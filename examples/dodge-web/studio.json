@@ -1,0 +1,10 @@
+{
+ "context": "jam",
+ "coding": 1,
+ "engine": "web",
+ "build_dir": ".",
+ "platforms": [
+  "itch"
+ ],
+ "itch": "example/dodge-web"
+}
