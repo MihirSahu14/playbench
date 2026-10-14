@@ -38,6 +38,7 @@ SCRIPT_EX = '[{"t": 0, "keys": ["ArrowRight"]}, {"t": 1.5, "keys": []}]'
 # Injected before any game script: seed, overrides, seeded Math.random (mulberry32) and the state reader.
 PROBE_JS = """(()=>{const P=window.__playbench=__CFG__;let a=P.seed>>>0;
 Math.random=()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+if(window.AudioContext){const t0=performance.now();Object.defineProperty(AudioContext.prototype,'currentTime',{configurable:true,get(){return(performance.now()-t0)/1000}})}
 P.read=()=>{try{const g=window.__game;
  if(g&&typeof g.state==='function')return g.state();
  if(g&&g.state&&typeof g.state==='object')return g.state;
@@ -168,6 +169,14 @@ class Quiet(SimpleHTTPRequestHandler):
         super().end_headers()
 
 
+def gpu_args():
+    """Real GPU where one is reliably there; heavy canvas games render ~5x faster than in SwiftShader.
+    PLAYBENCH_GPU=0 forces software rendering (CI, or a GPU driver that misbehaves)."""
+    # ponytail: Linux stays on SwiftShader; CI boxes rarely have a GPU, add vulkan when someone asks
+    gpu = {"win32": ["--use-gl=angle", "--use-angle=d3d11"], "darwin": ["--use-angle=metal"]}.get(sys.platform)
+    return gpu if gpu and os.environ.get("PLAYBENCH_GPU", "1") != "0" else ["--use-angle=swiftshader"]
+
+
 def snap(target):
     try:
         return target.screenshot(timeout=5000)
@@ -190,7 +199,7 @@ def web_session(root, query, overrides, realtime, coop):
     try:
         with sync_playwright() as pw:
             try:
-                br = pw.chromium.launch(headless=True, args=["--use-angle=swiftshader"])
+                br = pw.chromium.launch(headless=True, args=gpu_args())
             except Exception as e:
                 die(f'chromium failed to launch ({str(e).splitlines()[0]}): run "{x}" -m playwright install chromium')
 
@@ -580,7 +589,12 @@ def run(build, mode="quick", bot=None, seeds=None, seconds=None, overrides=None,
                 replay = (idle, [], "final" if idle[0]["tier"] else "shot")
                 if not idle[0]["boot"]:
                     idle.append(play(1, "idle", REPLAY_S))
-                    if idle[0][replay[2]] is not None and idle[0][replay[2]] == idle[1][replay[2]]:
+                    k = replay[2]
+                    if idle[0][k] is not None and idle[0][k] != idle[1][k]:
+                        # ponytail: heavy games can see ~1 ms of clock jitter around input; one tie-break run, 2 of 3 wins
+                        third = play(1, "idle", REPLAY_S)
+                        idle[:] = [x for x in idle if x[k] == third[k]][:1] + [third] if third[k] in (idle[0][k], idle[1][k]) else idle
+                    if idle[0][k] is not None and idle[0][k] == idle[1][k]:
                         moves = [a for a in idle[0]["actions"] if a not in START_KEYS]
                         replay[1].extend(play(1, "hold:" + a, REPLAY_S) for a in moves[:2 if mode == "quick" else None])
             tier = replay and replay[0][0]["tier"]

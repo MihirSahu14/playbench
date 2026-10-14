@@ -25,6 +25,7 @@ One repo, packaged for each agent:
   `python -m pip install playwright && python -m playwright install chromium`
   The studio, design, `ship artgate` and `ship gate` features work without it.
 - **If pip refuses** (PEP 668 "externally managed"), `status` prints a venv recipe instead (`INSTALL=` and `VENV=`). The venv lives in the plugin's data folder (`CLAUDE_PLUGIN_DATA`); once it has Playwright, `RUN` becomes its quoted interpreter path.
+- **Rendering:** playtests use the real GPU on Windows and macOS. That's much faster for heavy canvas games. Set `PLAYBENCH_GPU=0` to force software rendering (SwiftShader), which Linux and CI use by default.
 - **For `art`:** Pillow (`python -m pip install pillow`), only for the commands that draw or pack.
 - **Optional binaries**, never downloaded by playbench:
   - `GODOT`: a Godot 4 editor executable, for Godot native playtests and sweeps (experimental).

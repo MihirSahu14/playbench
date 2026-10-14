@@ -57,7 +57,9 @@ def detect(d):
     d = Path(d)
     if (d / "project.godot").exists():
         return "godot", "."
-    for sub in (".", "build", "dist", "export", "public", "web"):
+    # a dedicated build folder beats a root index.html (often the dev page that loads src/ directly)
+    subs = ["dist", "build", "export", *sorted(p.relative_to(d).as_posix() for p in d.glob("release/*") if p.is_dir()), "web", "public", "."]
+    for sub in subs:
         if (d / sub / "index.html").exists():
             return "web", sub
     pkg = d / "package.json"

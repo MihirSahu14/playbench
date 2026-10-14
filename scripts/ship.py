@@ -285,6 +285,9 @@ def itch(game, real=False):
     errs = limits(build, files)
     print('\n'.join(f'BLOCKED {e}' for e in errs) or f'itch limits PASS ({len(files)} files)')
     if errs: return verdict_line([f'itch limits ({STORE["SOURCES"]["itch"]})'], '')
+    dev = sorted({f.split('/')[0] for f in files if '/' in f} & {'src', 'tools', 'docs', 'test', 'tests', 'legacy', 'release', 'node_modules'})
+    if dev:  # the game root as build_dir ships the whole repo
+        print(f'WARN the upload includes dev folders ({", ".join(dev)}/); point build_dir in studio.json at your built game')
     out.parent.mkdir(exist_ok=True)
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED, strict_timestamps=False) as z:  # pre-1980 mtimes crash otherwise
         for rel in files: z.write(build / rel, rel)

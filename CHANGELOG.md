@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 (2026-10-14)
+Fixes found by running playbench on a real game (Haunt, a 5,600-line canvas horror game):
+- **Playtests about 6× faster on heavy games.** Headless Chromium now uses the real GPU on Windows (d3d11) and macOS (metal). Haunt's quick playtest dropped from 14 min to 2 min. `PLAYBENCH_GPU=0` forces software rendering.
+- **Fewer false "nondeterministic" warnings.** Games timed by Web Audio now follow the fake clock (`AudioContext.currentTime`). When the two idle replays disagree, one tie-break run decides 2 of 3, so the dead-input check runs instead of being skipped.
+- **Right build folder.** `studio init` now prefers `dist/`, `build/`, `export/` or `release/*/` over a root `index.html`, which is often the dev page. `ship itch` warns when the upload contains dev folders (`src/`, `tools/`, `docs/`, …). On Haunt the zip went from 41 files and 8.9 MB to one 214 KB file.
+
 ## 0.3.0 (2026-10-13)
 - **Works on any agent.** Packaged for Claude Code, Codex (verified live: studio and a full quick playtest), the open Agent Plugins format (Cursor, GitHub Copilot CLI), and Gemini CLI. `scripts/install.py` installs the skills for anything else that reads `SKILL.md` folders.
 - **Portable skills.** Each skill tells non-Claude agents to run `studio.py status` themselves. No `${CLAUDE_*}` paths remain outside Claude Code's auto-run line, and the selftest enforces this.
