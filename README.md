@@ -31,7 +31,7 @@ playbench catches each of those early:
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[💬 Design<br/>one chat, one page] --> B[🛠️ Build a feature]
     B --> C{🤖 Bot playtest}
     C -- FAIL --> B
