@@ -1,102 +1,108 @@
+<div align="center">
+
 # playbench
 
-A Claude Code plugin where bots play your **real game build** after every feature. It also sweeps balance knobs on that same build, and it blocks itch and Steam releases until placeholder or AI art is disclosed and a human has ticked the release gate. Design stays at one conversation and one page. The flow adapts to jam, hobby, team or classroom use, and to how much you want to code.
+**Bots playtest your game after every feature. You stay in charge of the fun.**
 
-**What actually works in v1:**
-- **Web is first-class.** Any HTML5 export works: plain JS, Phaser, Godot web, Unity WebGL, GameMaker, Construct and GDevelop. It runs through headless Chromium with a virtual clock.
-- **Godot native is experimental.** It goes headless through `probe.gd`, and stays unverified until it has been run against a real Godot 4 binary.
-- **Native Unity and Unreal builds** get bot playtests only through a WebGL export.
+A Claude Code plugin for game developers: design, playtest, balance, ship.
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)
+![Engines](https://img.shields.io/badge/works%20with-any%20HTML5%20export-blue)
+
+<img src="docs/assets/demo.gif" width="480" alt="A playbench bot playing the Dodge sample game">
+
+<sub>A playbench bot playing the real build of the sample game. No human hands.</sub>
+
+</div>
+
+---
+
+## Why
+
+Most indie games die the same way: a bug from hour 2 gets found at hour 40, nobody playtests until it "feels ready", and the release goes out with placeholder art still in it.
+
+playbench catches each of those early:
+
+- 🤖 **After every feature**, bots play your real build and catch crashes, freezes, softlocks and dead controls.
+- 📊 **Balance on the real game.** It sweeps a value such as enemy speed and shows you where the difficulty falls off a cliff.
+- 🚦 **Ship with gates.** Undisclosed AI or placeholder art is blocked, and nothing uploads until *you* tick the release gates.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[💬 Design<br/>one chat, one page] --> B[🛠️ Build a feature]
+    B --> C{🤖 Bot playtest}
+    C -- FAIL --> B
+    C -- PASS --> D[📊 Balance sweep]
+    D --> E[🧑 Human playtest<br/>is it fun?]
+    E --> B
+    E --> F{🚦 Release gates<br/>ticked by you}
+    F --> G[🚀 itch.io / Steam / web]
+```
+
+## See it work
+
+<table>
+<tr>
+<td width="50%"><b>"What's next?"</b> It knows your stage, your open gates and your playtest debt.<br><img src="docs/assets/studio.png" alt="studio skill output"></td>
+<td width="50%"><b>"Playtest it."</b> PASS, then someone adds a bug and you get a screenshot of the crash.<br><img src="docs/assets/playtest.png" alt="playtest pass and crash"></td>
+</tr>
+<tr>
+<td><b>"Is bat speed balanced?"</b> One sweep, and the cliff is obvious.<br><img src="docs/assets/balance.png" alt="balance sweep chart"></td>
+<td><b>"Ship to itch."</b> Placeholder art is blocked, and the upload waits for your sign-off.<br><img src="docs/assets/ship.png" alt="ship gates"></td>
+</tr>
+</table>
+
+<sub>Every screen above is real output from the bundled <code>examples/dodge-web</code> game.</sub>
 
 ## Install
-In Claude Code:
+
+Run these in Claude Code:
+
 ```
 /plugin marketplace add MihirSahu14/playbench
 /plugin install playbench@playbench
 ```
-Or from a terminal:
-```
-claude plugin marketplace add MihirSahu14/playbench
-claude plugin install playbench@playbench
-```
-To develop it, load a local checkout instead: `claude --plugin-dir "<path to this repo>"`.
 
-## Requirements
-- **Python 3.11+.** The scripts use the stdlib only.
-- **For web playtests, balance sweeps and boot checks:** Playwright with Chromium. Install it with the exact line `status` prints, for example:
-  `python -m pip install playwright && python -m playwright install chromium`
-  The studio, design, `ship artgate` and `ship gate` features work without it.
-- **Optional:** set `GODOT` to a Godot 4 editor executable for Godot native playtests (experimental), and install `butler` or `steamcmd` to upload. playbench only prints upload commands; you run them yourself.
+Requires Python 3.11 or newer. For browser playtests you also need Playwright; playbench prints the exact install line when you first need it.
 
-## Who it's for
-- **Game-jammer** (`jam`): a deadline countdown, a 3-seed quick playtest, gates `playable -> submitted`, a jam-ready itch zip and checklist. Steam stays hidden.
-- **Solo hobbyist** (`hobby`): the must list is capped at hours/week × weeks, warnings fire at 5 commits without a bot playtest and 20 without a human one, and gates are `prototype -> slice -> release`.
-- **Small indie team** (`team`): every gate box has an owner, every playtest is diffed against the last one, the Steam vdf and store-asset checks are included, and `ship gate` shows who ticked each box (git blame).
-- **Low-code designer** (coding = 1, any context): Claude writes the probe adapter and the bot, moves tunables into data files, and reports each verdict in one plain line.
-- **Student or educator** (`learn`): a course AI policy (`open`, `disclose` or `banned`), a rubric block on playtest reports, and under `banned` Claude only explains, reviews and runs checks.
+## Try it in 60 seconds
 
-## 60-second jam quickstart
-1. Open Claude Code in your game folder and say **"set up playbench for a jam"**. The studio skill asks: kind of project, coding comfort, engine, target and deadline.
-2. Say **"let's design it"**. You get 5 theme interpretations, a hook, a core loop and a must/cut list sized to the hours left. The result is `design/design.md`.
-3. Build a feature, then say **"playtest it"**. Bots play 3 seeds × 30 s of your real build and report boot failures, crashes, softlocks and dead input.
-4. Say **"ship to itch"**. playbench checks the itch limits, zips the build, boot-checks the zip and prints the `butler push … --dry-run` command. It gives you the real command only once the art is disclosed and you have ticked the gates.
+Open Claude Code in your game folder and just talk:
 
-## Probe contract (how bots read your game)
-The state the game returns has this shape:
+1. **"Set up playbench for a jam."** A few quick questions: what kind of project, how much you code, engine, deadline.
+2. **"Let's design it."** You get a hook, a core loop and a must/cut list on one page.
+3. **"Playtest it."** after each feature.
+4. **"Ship to itch."** when you're ready.
 
-`{over: bool, won?: bool, score?: number, paused?: bool, ...gameplay fields}`
+## Made for
 
-- `paused` covers menus, title screens and cutscenes.
-- Keys starting with `_`, and the keys `t`, `time`, `frame`, `tick` and `elapsed`, are ignored when the state is hashed.
-
-**Web.** The game may define `window.__game`:
-- `state`: a function returning the state, or a plain object the game keeps updated.
-- `bot(state) -> string[]` (optional): the `KeyboardEvent.key` values to hold for this step.
-- `actions: string[]` (optional): defaults to `["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," ","Enter"]`.
-
-`window.render_game_to_text()` and `window.__GAME_STATE__` are also accepted. Before the game runs, the harness injects `window.__playbench = {seed, overrides}` and replaces `Math.random` with a seeded PRNG. Bundled tunables are read like this:
-
-`(window.__playbench?.overrides ?? {}).<name> ?? <default>`
-
-**Godot (experimental).** The main scene's root node may define `probe_state() -> Dictionary`, `probe_seed(seed)`, `probe_actions() -> Array[String]` and `probe_bot(state) -> Array[String]`.
-
-**Tiers** are detected automatically:
-- **T0** needs nothing. It finds boot failures, errors, a frozen canvas and dead input.
-- **T1** needs a readable state. It adds softlock and state-based dead-input checks.
-- **T2** needs a bot. It adds win rate and time-to-over, labelled *relative difficulty under policy bot*.
-
-## Commands
-| Skill | Scripts it runs |
+| You are… | playbench gives you… |
 |---|---|
-| `/playbench:studio`: setup, status, what next | `studio.py detect`, `studio.py init --context jam\|hobby\|team\|learn …`, `studio.py status` |
-| `/playbench:design`: one discussion, one page | none (it writes `design/design.md`) |
-| `/playbench:playtest`: quick, milestone and final bot playtests | `playtest.py run <build> --mode quick\|milestone\|final --out playtests` |
-| `/playbench:balance`: knob sweeps on the real build | `balance.py sweep . --knob <name> [--values a,b,c]` |
-| `/playbench:ship`: release gates and uploads | `ship.py artgate\|gate\|itch\|steam\|web` |
+| 🏃 **Game-jammer** | A deadline countdown, a one-minute playtest after each feature, and an itch zip that's been boot-checked |
+| 🌙 **Solo hobbyist** | Scope that fits your hours, and a nudge when you've gone too long without testing |
+| 👥 **Small team** | Gate owners, playtest regressions between runs, Steam build config, and who-approved-what from git |
+| 🎨 **Designer who codes a little** | Claude writes the test hooks and bots; you tune numbers in data files |
+| 🎓 **Student** | A course AI policy (open, disclose or banned) and an honest record of AI use |
 
-Every script has a `selftest`. Run them all with `python scripts/selftest.py`, which also runs `claude plugin validate . --strict`.
+**Engines:** any HTML5 export (plain JS, Phaser, Godot web, Unity WebGL, GameMaker, Construct, GDevelop). Godot native is experimental.
 
-State lives as plain files in your game repo: `studio.json`, `gates.md`, `design/design.md`, `art/PLACEHOLDERS.json`, `disclosure.md`, `playtests/`, `balance/last.json`. There is no database. Stage and playtest debt are derived from git and the files, so team members don't get merge conflicts.
+## What bots can't do
 
-## What bots can't judge
-Bots find crashes, softlocks, dead input, frozen screens and relative difficulty shifts. They cannot judge **fun, clarity, feel or art**. A human playtest (`playtests/<date>-human.md`, from the milestone sheet) is required before gates. **Only humans tick gate boxes**: Claude never writes `[x]`, and `ship gate` shows who ticked each box with git blame.
+Bots find what's broken. They can't tell you whether the game is **fun**. playbench asks for a human playtest before every gate, and only humans tick gates.
 
-## AI-art policy
-- AI art is only for clearly marked placeholders: a `_placeholder` filename and an entry in `art/PLACEHOLDERS.json`.
-- `ship artgate` scans the build and `store/`. It flags placeholder names, PNG generator metadata (`parameters`, `prompt` or `workflow` chunks, and generator names), C2PA (`caBX`) and JPEG/WebP generator bytes. It blocks unless every flagged file is covered by a line in `disclosure.md`.
-- On a pass it reminds you to fill in Steam's AI content survey and itch's AI tag.
-- Detection is heuristic, so stripped metadata gets through. It is a safety net for honest developers, not enforcement.
+## Learn more
 
-## Use it in your next jam
-- Install it before the jam starts, and run `studio init --context jam --deadline <ISO>` in an empty folder.
-- Keep the quick playtest after every feature: 3 seeds × 30 s, about a minute. It catches the "broke the title screen at hour 40" bug.
-- Run `ship itch` early, on day one. It catches root-absolute URLs, case-mismatched asset paths and the 1000-file limit while there is still time to fix them.
-- After the jam, share your `playtests/*.md` and what the bots missed. Issues and PRs are welcome.
-
-## Roadmap
-v1 covers web builds end to end. Godot native playtests are experimental. Planned next: an automatic playtest hook after each feature, balance sweeps for bundled data and Godot, a sprite pipeline (Aseprite exports), an itch page theme generator, and persona playtest commentary. See [the design spec](docs/superpowers/specs/2026-10-13-playbench-design.md) for the full roadmap and [implementation notes](docs/implementation-notes.md) for internals.
+- [Reference](docs/reference.md): commands, the probe contract (how bots read your game), the AI-art policy, state files
+- [Design spec and roadmap](docs/superpowers/specs/2026-10-13-playbench-design.md)
+- **Coming next:** auto-playtest hooks, balance for bundled data and Godot, a sprite pipeline, itch page themes
 
 ## Contributing
-Issues and PRs are welcome. Before opening a PR, run `python scripts/selftest.py`. It must print `ok selftest`.
+
+Issues and PRs are welcome. Run `python scripts/selftest.py` before opening a PR; it should print `ok selftest`.
 
 ## License
+
 [MIT](LICENSE) © 2026 Mihir Sahu
