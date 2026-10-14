@@ -2,13 +2,15 @@
 
     playtest.py run <build> [--mode M] [--bot idle|random|policy|mash|script:F.json] [--seeds N] [--seconds S]
                             [--override F:K=V | NAME=V]... [--realtime] [--coop] [--windowed] [--out DIR]
+    playtest.py agent <build> --script F.json [--seed 1] [--seconds 60] [--then pause|idle|random|policy] [--out DIR]
+    playtest.py sheet|survey <game> [--out DIR]
     playtest.py selftest [game_dir]
 
 Library: run(build, ...) -> report dict (spec: Report JSON). Stdlib only; playwright is imported lazily.
 A build is a dir, a .zip, or either with a ?query suffix that is passed to the game (?bug=crash).
 """
 import argparse, csv, hashlib, io, json, os, random, shutil, statistics, subprocess, sys, tempfile, threading, time, zipfile
-from contextlib import contextmanager, redirect_stderr
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -26,6 +28,10 @@ KEYS = ["version", "at", "mode", "engine", "build", "tier", "verdict", "summary"
         "overrides", "regression", "cannot_judge"]
 CANNOT_JUDGE = "Bots cannot judge fun, clarity or feel. A human playtest is still required before any gate."
 REPLAY_S, EPOCH = 3, datetime(2026, 1, 1)
+NO_GOALS = "- (no experience goals found in design/design.md)"
+OPEN_QS = ["What was the most confusing moment?", "When did you want to stop playing, if at all?",
+           "What one thing would you change?", "Would you play again? (1-5)"]
+THENS = ("pause", "idle", "random", "policy")
 BOTS = ("idle", "random", "policy", "mash")
 SCRIPT_EX = '[{"t": 0, "keys": ["ArrowRight"]}, {"t": 1.5, "keys": []}]'
 
@@ -70,7 +76,7 @@ def check_bot(bot):
     except ValueError:
         steps = None
     num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0
-    if not (isinstance(steps, list) and steps and all(
+    if not (isinstance(steps, list) and all(  # [] is fine: an agent script starts empty
             isinstance(e, dict) and num(e.get("t")) and isinstance(e.get("keys"), list)
             and all(isinstance(k, str) for k in e["keys"]) for e in steps)
             and [e["t"] for e in steps] == sorted(e["t"] for e in steps)):
@@ -81,7 +87,8 @@ def check_bot(bot):
 def new_rec(seed, bot, actions):
     bot = "script:" + Path(bot[7:]).name if bot.startswith("script:") else bot
     return dict(seed=seed, bot=bot, seconds=0.0, over=False, won=False, time_to_over=None, timeline=[], shots=[],
-                errors=[], console=[], boot=None, tier=None, actions=actions, final=None, shot=None, png=None)
+                errors=[], console=[], boot=None, tier=None, actions=actions, final=None, shot=None, png=None,
+                film=[], pause=None)
 
 
 def err(rec, t, msg):
@@ -187,7 +194,8 @@ def web_session(root, query, overrides, realtime, coop):
             except Exception as e:
                 die(f'chromium failed to launch ({str(e).splitlines()[0]}): run "{x}" -m playwright install chromium')
 
-            def play(seed, bot, secs):
+            def play(seed, bot, secs, then=None):
+                """then (agent mode, C4): the bot after the script's last t; stop at the first decision point there."""
                 rec, now, pg, steps = new_rec(seed, bot, WEB_ACTIONS), [0.0], br.new_page(), check_bot(bot)
                 pg.on("pageerror", lambda e: err(rec, now[0], e))
                 pg.on("console", lambda m: m.type == "error" and rec["console"].append(m.text))
@@ -231,20 +239,34 @@ def web_session(root, query, overrides, realtime, coop):
                 rec["actions"] = acts if isinstance(acts, list) and acts else WEB_ACTIONS
                 moves = [a for a in rec["actions"] if a not in START_KEYS]
                 rng, held, act_since = random.Random(seed), set(), False
+                last, calm, armed = (steps[-1]["t"] if steps else 0), (0, None), False  # calm: (since, hash), keys held
                 for i in range(1, round(secs * 10) + 1):
                     adv(100)
                     t = now[0] = round(i / 10, 1)
-                    s, k = pg.evaluate(STEP_JS, bot == "policy" and hasbot)
-                    if bot == "policy":
+                    b = then if armed else bot
+                    s, k = pg.evaluate(STEP_JS, b == "policy" and hasbot)
+                    if then:
+                        d, h = s if isinstance(s, dict) else {}, shash(s)
+                        if h != calm[1] or not held or d.get("over") or d.get("paused") or s is None:  # tier 0: no state
+                            calm = (t, h)
+                        why = armed and not d.get("over") and (  # only once the script's last entry was pressed
+                            "crash" if rec["errors"] else "choices" if d.get("choices") or d.get("decision") is True
+                            else "stuck" if t - calm[0] >= 2 else "script_end" if then == "pause" else None)
+                        if why:
+                            rec.update(pause=dict(t=t, reason=why, state=s), png=snap(cv))
+                            break
+                    if b == "policy":
                         want = set(map(str, k or []))
-                    elif bot.startswith("hold:"):
-                        want = {bot[5:]}
-                    elif bot == "random":  # re-picks every 300 ms: nothing or one move
+                    elif b.startswith("hold:"):
+                        want = {b[5:]}
+                    elif b == "random":  # re-picks every 300 ms: nothing or one move
                         want = set(rng.choice([[]] + [[a] for a in moves])) if i % 3 == 1 else held
-                    elif bot == "mash":  # a fresh random subset of every action each step, start keys included
+                    elif b == "mash":  # a fresh random subset of every action each step, start keys included
                         want = {a for a in rec["actions"] if rng.random() < 0.5}
-                    else:  # script: keys of the last entry with t <= now (the last one stays held); idle: none
+                    elif b.startswith("script:"):  # keys of the last entry with t <= now (the last one stays held)
                         want = set(next((e["keys"] for e in reversed(steps) if e["t"] <= t), []))
+                    else:  # idle
+                        want = set()
                     try:
                         for key in held - want:
                             pg.keyboard.up("Space" if key == " " else key)
@@ -255,13 +277,15 @@ def web_session(root, query, overrides, realtime, coop):
                             die(f"bad key in bot script {bot[7:]}: {str(e).splitlines()[0]} (web keys: {WEB_ACTIONS})")
                         err(rec, t, f"bot sent a key the browser does not know: {e}")
                         want = set()
-                    held, act_since = want, act_since or bool(want)
+                    held, act_since, armed = want, act_since or bool(want), bool(then) and (armed or t >= last)
                     over = record_step(rec, t, s, held, hasbot)
                     if i % 10 == 0 or over:  # under page.clock the canvas only changes inside run_for
                         rec["png"] = snap(cv)
                         rec["shot"] = rec["png"] and hashlib.sha1(rec["png"]).hexdigest()[:12]
                         rec["shots"].append((t, rec["shot"], act_since))
                         act_since = False
+                        if (i % 50 == 0 or over and not rec["film"]) and len(rec["film"]) < 6 and rec["png"]:  # persona filmstrip
+                            rec["film"].append(rec["png"])
                     if over:
                         break
                 pg.close()
@@ -418,7 +442,7 @@ def regression(out, name, rep):
     return {"prev": prev[-1].name, "new_kinds": sorted(kinds), "stat_shifts": shifts}
 
 
-def to_md(rep, game_dir=None):
+def to_md(rep, game_dir=None, film=()):
     L = [rep["summary"], "", f"`{rep['build']}` | {rep['mode']} | {rep['engine']} | tier {rep['tier']} | {rep['at']}", ""]
     L += ["| severity | kind | seed | bot | t (s) | detail | shot |", "|---|---|---|---|---|---|---|"] + [
         f"| {f['severity']} | {f['kind']} | {f['seed']} | {f['bot']} | {f['t']} | {f['detail'].replace('|', '/')} | {f.get('shot') or ''} |"
@@ -431,6 +455,9 @@ def to_md(rep, game_dir=None):
           f"{g['stat_shifts'] or 'none'}" if g else f"No earlier {rep['mode']} report to compare."]
     if rep["mode"] == "milestone":
         L += ["", "## Claude's review of anomaly screenshots", "(pending)"]
+    if film:  # the playtest skill's persona subagents replace (pending)
+        L += ["", "## Filmstrip"] + [f"- {f}" for f in film]
+        L += ["", "## Persona commentary (AI opinion, not a fun verdict)", "(pending)"]
     L += ["", rep["cannot_judge"]]
     try:
         learn = json.loads((game_dir / "studio.json").read_text("utf-8")).get("context") == "learn"
@@ -443,7 +470,57 @@ def to_md(rep, game_dir=None):
     return "\n".join(L) + "\n"
 
 
-def write_reports(rep, out_dir):
+def goals(game_dir):
+    """Experience-goal bullets from design/design.md (without the '- ')."""
+    try:
+        sec = (Path(game_dir) / "design" / "design.md").read_text("utf-8").split("## Experience goals", 1)[1].split("\n## ")[0]
+    except (OSError, IndexError):
+        return []
+    return [l.strip()[2:].strip() for l in sec.splitlines() if l.strip().startswith("- ")]
+
+
+def build_dir(game_dir):
+    try:
+        return json.loads((Path(game_dir) / "studio.json").read_text("utf-8")).get("build_dir") or "."
+    except (OSError, ValueError, AttributeError):
+        return "."
+
+
+def write_new(out_dir, kind, text):
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    f = out / f"{time.strftime('%Y-%m-%d-%H%M')}-{kind}.md"
+    if f.exists():  # same minute: never overwrite one (it may be filled in already)
+        f = out / f"{time.strftime('%Y-%m-%d-%H%M%S')}-{kind}.md"
+    f.write_text(text, "utf-8")
+    return f
+
+
+def sheet(game_dir, out_dir, build=None):
+    """Printable human playtest sheet from sheet-template.md; returns its path."""
+    gl = "\n".join(f"- {g}\n  - [ ] met  [ ] not met  [ ] waived. Evidence:" for g in goals(game_dir))
+    text = SHEET.read_text("utf-8").replace("{{GOALS}}", gl or NO_GOALS)
+    return write_new(out_dir, "sheet", text.replace("{{BUILD}}", build or build_dir(game_dir))
+                     .replace("{{DATE}}", time.strftime("%Y-%m-%d")))
+
+
+def survey(game_dir, out_dir):
+    """Short anonymous player survey (markdown + a Google Forms paste block); returns its path."""
+    gl, scale = goals(game_dir), "1 Strongly disagree, 2 Disagree, 3 Neutral, 4 Agree, 5 Strongly agree"
+    L = [f"# Player survey: {Path(game_dir).resolve().name}", "",
+         "About 2 minutes, anonymous: please don't write your name.", "", f"## How much do you agree? ({scale})", ""]
+    L += [f"{i}. {g}  \n   1 / 2 / 3 / 4 / 5" for i, g in enumerate(gl[:8], 1)] or [NO_GOALS]
+    if len(gl) > 8:
+        L += ["", f"({len(gl) - 8} more goals cut to keep it short.)"]
+    L += ["", "## Open questions"] + [f"- {q}" for q in OPEN_QS]
+    forms = [f"[Linear scale 1-5] {g} (1 = Strongly disagree, 5 = Strongly agree)" for g in gl[:8]]
+    forms += [f"[Paragraph] {q}" for q in OPEN_QS[:3]] + ["[Linear scale 1-5] Would you play again?"]
+    L += ["", "## Paste into Google Forms", "Forms has no text import: create each question and paste its text.",
+          "", "```text", "\n\n".join(forms), "```"]
+    return write_new(out_dir, "survey", "\n".join(L) + "\n")
+
+
+def write_reports(rep, out_dir, film=()):
     out, stamp = Path(out_dir), time.strftime("%Y-%m-%d-%H%M")
     if (out / f"{stamp}-{rep['mode']}.json").exists():  # same minute: add seconds, which still sorts after it
         stamp = time.strftime("%Y-%m-%d-%H%M%S")
@@ -457,16 +534,13 @@ def write_reports(rep, out_dir):
             (out / f["shot"]).write_bytes(f["_png"])
         del f["_png"]
     (out / f"{base}.json").write_text(json.dumps(rep, indent=1), "utf-8")
-    (out / f"{base}.md").write_text(to_md(rep, game), "utf-8")
+    paths = [f"shots/{stamp}-film-{i}.png" for i in range(1, len(film) + 1)]
+    for f, png in zip(paths, film):
+        (out / "shots").mkdir(exist_ok=True)
+        (out / f).write_bytes(png)
+    (out / f"{base}.md").write_text(to_md(rep, game, paths), "utf-8")
     if rep["mode"] == "milestone" and SHEET.is_file():
-        try:
-            sec = (game / "design" / "design.md").read_text("utf-8").split("## Experience goals", 1)[1].split("\n## ")[0]
-        except (OSError, IndexError):
-            sec = ""
-        goals = "\n".join(f"{l.strip()}\n  - [ ] met  [ ] not met  [ ] waived. Evidence:"
-                          for l in sec.splitlines() if l.strip().startswith("- "))
-        sheet = SHEET.read_text("utf-8").replace("{{GOALS}}", goals or "- (no experience goals found in design/design.md)")
-        (out / f"{stamp}-sheet.md").write_text(sheet.replace("{{BUILD}}", rep["build"]).replace("{{DATE}}", stamp[:10]), "utf-8")
+        sheet(game, out, rep["build"])
 
 
 # ---------- public API ----------
@@ -512,15 +586,48 @@ def run(build, mode="quick", bot=None, seeds=None, seconds=None, overrides=None,
     findings = detect(main, replay, tier, mode)
     verdict = "FAIL" if any(f["severity"] == "FAIL" for f in findings) else "WARN" if findings else "PASS"
     runs = [{k: r[k] for k in ("seed", "bot", "seconds", "over", "won", "time_to_over", "final")} for r in main if not r["boot"]]
+    film = main[0]["film"] if main and mode in ("milestone", "final") else []  # first main run only
     rep = {"version": 1, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "mode": mode, "engine": engine, "build": str(build),
            "tier": tier, "verdict": verdict, "summary": summarize(verdict, findings, len(runs), tier, bool(replay and replay[1])),
            "runs": runs, "findings": findings, "stats": stats_for(runs, tier), "overrides": overrides,
            "regression": None, "cannot_judge": CANNOT_JUDGE}
     if out_dir:
-        write_reports(rep, out_dir)
+        write_reports(rep, out_dir, film)
     for f in findings:
         f.pop("_png", None)
     return rep
+
+
+def agent(build, script, seed=1, seconds=60, then="pause", out_dir="playtests"):
+    """Decision-point playtest (C4, web only): play the script, then `then`; on a pause write
+    <out>/shots/agent-<NN>.png/.json and return {"decision": path, ...}, else {"over", "won", "t"}."""
+    if then not in THENS:
+        die(f"unknown --then {then!r}: use {', '.join(THENS)}")
+    sc, (path, _, query) = Path(script), str(build).partition("?")
+    if not sc.exists():
+        sc.parent.mkdir(parents=True, exist_ok=True)
+        sc.write_text("[]\n", "utf-8")
+        print(f"created empty script {sc}")
+    check_bot(f"script:{sc}")
+    root = Path(path)
+    if (root / "project.godot").is_file():
+        die("agent playtests are web-only for now")
+    if not (root / "index.html").is_file():  # ponytail: no .zip here; agent plays the game dir
+        die(f"no index.html in {path}")
+    with web_session(root, query, [], False, False) as play:
+        rec = play(seed, f"script:{sc}", seconds, then)
+    p = rec["pause"] or ((rec["boot"] or rec["errors"]) and dict(t=rec["seconds"], reason="crash", state=None))
+    if not p:
+        return dict(over=rec["over"], won=rec["won"], t=rec["seconds"])
+    shots, n = Path(out_dir) / "shots", 1
+    shots.mkdir(parents=True, exist_ok=True)
+    while (shots / f"agent-{n:02d}.json").exists() or (shots / f"agent-{n:02d}.png").exists():
+        n += 1
+    if rec["png"]:
+        (shots / f"agent-{n:02d}.png").write_bytes(rec["png"])
+    js = shots / f"agent-{n:02d}.json"
+    js.write_text(json.dumps({**p, "actions": rec["actions"], "script": str(sc), "seed": seed}, indent=1), "utf-8")
+    return dict(p, decision=str(js), errors=[m for _, m in rec["errors"]] or [rec["boot"]] * bool(rec["boot"]))
 
 
 # ---------- CLI ----------
@@ -643,6 +750,61 @@ def selftest_adapters(have_pw):
             print(f"ok (n) {tag} adapter: {r['summary']}")
 
 
+CHOICE_PAGE = """<!doctype html><canvas width=40 height=40></canvas><script>
+const t0 = performance.now();  // choices show 2.5 s after load (1 s of that is the harness start sequence)
+window.__game = {state: () => ({over: false, choices: performance.now() - t0 > 2500 ? ['left', 'right'] : []}),
+                 actions: ['ArrowLeft', 'ArrowRight']};
+</script>"""
+
+
+def selftest_agent(g, tmp):
+    """Agent decision points on the dodge-web copy g (patched calm: nothing spawns) and a tiny choice page."""
+    t0, out, sc = time.time(), g / "playtests", tmp / "agent.json"
+    with redirect_stdout(io.StringIO()):  # "created empty script"
+        r = agent(str(g), sc, out_dir=out)
+    assert r["reason"] == "script_end" and r["t"] <= 0.5 and sc.read_text("utf-8").strip() == "[]", r
+    assert (out / "shots" / "agent-01.png").is_file() and json.loads(Path(r["decision"]).read_text("utf-8"))["seed"] == 1
+    (tmp / "choice").mkdir()
+    (tmp / "choice" / "index.html").write_text(CHOICE_PAGE, "utf-8")
+    c = agent(str(tmp / "choice"), sc, then="idle", seconds=5, out_dir=out)
+    assert c["reason"] == "choices" and c["t"] >= 1 and c["decision"].endswith("agent-02.json"), c
+    sc.write_text('[{"t": 0, "keys": ["NoSuchKey"]}]', "utf-8")  # the last entry is pressed before any pause
+    try:
+        with redirect_stderr(io.StringIO()):
+            agent(str(g), sc, out_dir=out)
+        raise AssertionError("agent paused before pressing the script's last entry")
+    except SystemExit as e:
+        assert e.code == 2
+    for f, text in patch_files(g, [parse_override("data/enemies.csv:*.spawn_ms=999999")]).items():
+        (g / f).write_text(text, "utf-8")  # agent() takes no overrides: calm the copy itself
+    sc.write_text(json.dumps([{"t": 0, "keys": ["ArrowLeft"]}, {"t": 11, "keys": ["ArrowLeft"]}]), "utf-8")
+    s = agent(f"{g}?bug=softlock", sc, seconds=15, out_dir=out)
+    assert s["reason"] == "stuck" and s["t"] > 11, s
+    print(f"ok (p) agent: script_end at {r['t']}s, choices at {c['t']}s, stuck at {s['t']}s")
+    m = run(str(g), mode="milestone", bot="random", seeds=1, seconds=12, out_dir=out)
+    md = next(out.glob("*-milestone.md")).read_text("utf-8")
+    assert "## Persona commentary (AI opinion, not a fun verdict)" in md and list(m) == KEYS, md
+    assert len(list((out / "shots").glob("*-film-*.png"))) >= 2 and "## Filmstrip" in md, md
+    print(f"ok (q) milestone filmstrip + persona section [{time.time() - t0:.0f}s]")
+
+
+def selftest_sheets():
+    with tempfile.TemporaryDirectory() as tmp:
+        g, gl = Path(tmp), ["Goal one is tense", "Goal two is clear", "Goal three is quick"]
+        (g / "studio.json").write_text('{"build_dir": "build"}', "utf-8")
+        a, b = sheet(g, g / "out"), survey(g, g / "out")
+        assert NO_GOALS in a.read_text("utf-8") and NO_GOALS in b.read_text("utf-8")
+        (g / "design").mkdir()
+        (g / "design" / "design.md").write_text("# X\n## Experience goals\n" + "".join(f"- {x}\n" for x in gl)
+                                                 + "\n## Knobs\n- not a goal\n", "utf-8")
+        assert goals(g) == gl, goals(g)
+        a, b = sheet(g, g / "out").read_text("utf-8"), survey(g, g / "out").read_text("utf-8")
+        assert all(x in a and x in b for x in gl) and "{{" not in a and "## Paste into Google Forms" in b
+        assert b.count("[Linear scale 1-5]") == 4 and b.count("[Paragraph]") == 3, b
+        assert len(list((g / "out").glob("*-sheet.md"))) == 2, "same-minute sheet overwritten"
+    print("ok (r) sheet + survey")
+
+
 def selftest(game=None):
     game = Path(game or HERE.parent / "examples" / "dodge-web")
     try:
@@ -703,7 +865,9 @@ def selftest(game=None):
                 raise AssertionError("unknown script key accepted")
             except SystemExit as e:
                 assert e.code == 2
+            selftest_agent(g, Path(tmp))
     selftest_adapters(have_pw)
+    selftest_sheets()
     selftest_godot_stub()
     gd = HERE.parent / "examples" / "dodge-godot"
     if not godot_exe() or not (gd / "project.godot").is_file():
@@ -767,10 +931,35 @@ def main(argv=None):
     r.add_argument("--coop", action="store_true", help="send COOP/COEP headers (SharedArrayBuffer builds)")
     r.add_argument("--windowed", action="store_true", help="Godot only: run with a window so screenshots are taken")
     r.add_argument("--out", help="write <stamp>-<mode>.json/.md and shots/ here (use playtests)")
+    g = sub.add_parser("agent", help="web only: play a script, pause at the next decision point (exit 3)")
+    g.add_argument("build")
+    g.add_argument("--script", required=True, help="JSON list of {t, keys}; created as [] if missing")
+    g.add_argument("--seed", type=int, default=1)
+    g.add_argument("--seconds", type=float, default=60)
+    g.add_argument("--then", choices=THENS, default="pause", help="bot after the script (pause: stop at its end)")
+    g.add_argument("--out", default="playtests")
+    for c in ("sheet", "survey"):
+        x = sub.add_parser(c, help=f"write <out>/<stamp>-{c}.md for human playtesters")
+        x.add_argument("game")
+        x.add_argument("--out", default="playtests")
     sub.add_parser("selftest").add_argument("game", nargs="?")
     a = ap.parse_args(argv)
     if a.cmd == "selftest":
         return selftest(a.game)
+    if a.cmd in ("sheet", "survey"):
+        if not Path(a.game).is_dir():
+            die(f"game folder not found: {a.game}")
+        print((sheet if a.cmd == "sheet" else survey)(a.game, a.out))
+        return 0
+    if a.cmd == "agent":
+        r = agent(a.build, a.script, a.seed, a.seconds, a.then, a.out)
+        if "decision" not in r:
+            print(f"AGENT_DONE over={r['over']} won={r['won']} t={r['t']}")
+            return 0
+        for m in r["errors"]:
+            print(f"ERROR={m}")
+        print(f"DECISION={r['decision']}")
+        return 3
     rep = run(a.build, a.mode, a.bot, a.seeds, a.seconds, [parse_override(o) for o in a.override], a.realtime, a.coop, a.out, a.windowed)
     print(to_md(rep, Path(a.out).resolve().parent if a.out else None), end="")
     return 1 if rep["verdict"] == "FAIL" else 0

@@ -10,7 +10,7 @@
     {
       "name": "playbench",
       "source": "./",
-      "description": "Bots play your real game build after every feature, balance sweeps on the real build, and itch/Steam release gates that block undisclosed AI/placeholder art. Lean one-page design. Adapts to jam, hobby, team or classroom use."
+      "description": "Game-dev loops for Claude Code: one-page design, build in playtested slices, bots that play the real build, balance sweeps, iterate from evidence, human playtest logs, and itch/Steam ship checks that block undisclosed AI art. Humans own fun, final art, GO/KILL and every gate tick."
     }
   ]
 }

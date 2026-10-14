@@ -1,7 +1,7 @@
 {
   "name": "playbench",
-  "version": "0.1.0",
-  "description": "Bots play your real game build after every feature, balance sweeps on the real build, and itch/Steam release gates that block undisclosed AI/placeholder art. Lean one-page design. Adapts to jam, hobby, team or classroom use.",
+  "version": "0.2.0",
+  "description": "Game-dev loops for Claude Code: one-page design, build in playtested slices, bots that play the real build, balance sweeps, iterate from evidence, human playtest logs, and itch/Steam ship checks that block undisclosed AI art. Humans own fun, final art, GO/KILL and every gate tick.",
   "author": {
     "name": "Mihir Sahu"
   },
@@ -12,7 +12,10 @@
     "itch",
     "steam",
     "godot",
-    "balance"
+    "balance",
+    "game-design",
+    "game-jam",
+    "indie"
   ],
   "homepage": "https://github.com/MihirSahu14/playbench",
   "repository": "https://github.com/MihirSahu14/playbench"

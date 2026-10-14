@@ -63,12 +63,27 @@ Tier 0 sees only the screen. **Construct 3 / GDevelop / Unity WebGL / GameMaker:
 
 Rerun the same quick playtest after the upgrade and report the new tier.
 
-## 6. Milestone extras
+## 6. Agent playtest (decision points, web only)
+When: menus, puzzles, choice-driven games, or when a quick run stalls at a choice the random bot can't make. Not under `AI_POLICY=banned` (only T0 playtests are allowed there).
+1. The script is `playtests/agent/<name>.json`; it starts as `[]` (created if missing).
+2. Run `<RUN> "<PLUGIN>/scripts/playtest.py" agent <BUILD> --script playtests/agent/<name>.json --out playtests` (`--then idle|random|policy` keeps playing after the script; default `pause`).
+3. Exit 3 prints `DECISION=<json>`: read it (`t`, `reason` choices|stuck|crash|script_end, `state`, `actions`) and its `.png`. A crash also prints `ERROR=` lines: triage it like a crash FAIL.
+4. Choose inputs as a first-time player would, and explain each choice in one line. Append entries with `t` >= the decision `t`; end with an entry like `{"t": <when to look again>, "keys": []}`. Use only `actions` keys.
+5. Rerun (the fake clock replays identically). Exit 0 prints `AGENT_DONE over=... won=... t=...`.
+6. At most 10 decisions per session, then summarize what the path showed. Keep the script: `run <BUILD> --bot script:playtests/agent/<name>.json` replays it as a regression check.
+
+## 7. Milestone extras
 - Read the FAIL screenshots listed in the report. If there are more than 5, hand them to a subagent.
 - Replace `(pending)` under `## Claude's review of anomaly screenshots` in the milestone `.md`. Describe only what is visible (what is on screen, what looks stuck or broken). Do not judge fun.
+- **Persona commentary:** dispatch 4 subagents in parallel, each given the `## Filmstrip` PNGs, the report `.md`/`.json`, any `playtests/shots/agent-*` shots and the experience goals from `design/design.md`:
+  - **Newbie:** first time, reads nothing. **Min-maxer:** optimal play and exploits. **Explorer:** edges, boundaries, secrets. **Quitter:** when and why they would stop.
+  - Each returns at most 5 bullets. Replace `(pending)` under `## Persona commentary` with `### <Persona> (AI persona, opinion only)` sections.
+  - Never phrase it as fun / not fun, never tick a box. Humans decide.
 - Point the human to `playtests/<stamp>-sheet.md`: play the game with a real person, fill in the sheet, and save it as `playtests/<date>-human.md`. Only a human sheet can mark experience goals met.
+- `playtest.py sheet <game> --out playtests` prints a fresh sheet any time; write-ups go through `/playbench:log`.
+- `playtest.py survey <game> --out playtests` writes a 2-minute anonymous survey (one 1-5 statement per experience goal, plus a Google Forms paste block). Responses go through `/playbench:log`.
 
-## 7. Gates
+## 8. Gates
 Never tick a gate box, and never write `[x]` into `gates.md`. Name the box the result supports instead, for example: "This supports *Latest quick playtest is PASS* in `## prototype`. Tick it yourself if you agree." A WARN supports a box only once each WARN is triaged.
 
 ## Notes

@@ -9,7 +9,7 @@ allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, G
 
 Output is exactly one file: `design/design.md`, built from `${CLAUDE_SKILL_DIR}/design-template.md`, about 60 lines at most. Never more docs. If `INIT=no`, suggest `/playbench:studio` first, but carry on if the user just wants to talk ideas (assume hobby).
 
-If `design/design.md` exists, read it and **edit it in place**; ask only about what is changing.
+If `design/design.md` exists, read it and **edit it in place**; ask only about what is changing. Leave its `## History` section alone: `/playbench:iterate` moves replaced text there later, and it is outside the ~60-line page.
 
 ## The conversation (one question at a time, each with a default)
 1. **Idea.** "What's the game, in a sentence?" For `CONTEXT=jam`, first ask for the theme and offer **5 interpretations** of it (one literal, one mechanical, one twist, one tonal, one off-the-wall), each as a one-line game pitch; let them pick or remix.
@@ -28,10 +28,13 @@ If `design/design.md` exists, read it and **edit it in place**; ask only about w
   - Prefer numbers in data files the game loads (`data/*.csv` or `*.json`): key `<id>.<column>` or `*.<column>` for CSV, a dotted path for JSON.
   - A bundled number uses file `-` and is read in code as `(window.__playbench?.overrides ?? {}).<name> ?? <default>`.
   - `CODING=1`: tell the user Claude will move these tunables into data files while building. `CODING=3`: explain the table and let them choose. Under `AI_POLICY=banned`, explain only; the student writes the code.
-- Drop the sections the context doesn't use: jam has Hook, Core loop, Scope, Experience goals, Knobs (no Pillars, no Decision).
+- Drop the sections the context doesn't use: jam has Hook, Core loop, Scope, Experience goals, Knobs, History (no Pillars, no Decision).
 - **Decision:** leave exactly `Decision: ` empty. Never write GO or KILL; the human decides after playing the prototype. Say so.
 
 ## Rules
 - One page. If it passes about 60 lines, cut words, not sections.
-- No lore bibles, no GDD chapters, no extra files. Art direction, story and marketing wait until a human has played the prototype.
-- Never tick gates. After the page is written, the next step is building the first must feature, then `/playbench:playtest` quick.
+- No lore bibles, no GDD chapters, no extra files. Art direction, story and marketing wait until a human has played the prototype; then art direction goes to `/playbench:art`.
+- Never tick gates. After the page is written, the next step is `/playbench:build` for the first must feature, which ends with a `/playbench:playtest` quick run.
+
+## Next loop
+End with one line `Next loop: <loop> (/playbench:<skill>)`. Default: `Next loop: build (/playbench:build)`. When unsure, run a fresh `status` and use its `LOOP` and `NEXT`.

@@ -33,3 +33,6 @@ Budget: <h> h (must total: <h> h)
 
 ## Decision
 Decision: 
+
+## History
+<!-- /playbench:iterate moves replaced text here as ### Iteration <n> (<date>). Not part of the one-page limit. Never use a Knobs or Experience goals heading in here. -->
