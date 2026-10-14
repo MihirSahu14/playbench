@@ -4,14 +4,14 @@
     "name": "Mihir Sahu"
   },
   "metadata": {
-    "description": "playbench: AI playtesting, balance sweeps and release gates for game developers."
+    "description": "playbench: every game-dev loop in Claude Code, from one-page design to bot playtests, balance, iteration and gated shipping."
   },
   "plugins": [
     {
       "name": "playbench",
       "source": "./",
       "version": "0.2.0",
-      "description": "Game-dev loops for Claude Code: one-page design, build in playtested slices, bots and agent playtests on the real build, balance sweeps and economy sims, iterate from evidence, human playtest logs and player feedback, labelled placeholder art, and itch/Steam/web ship checks that block undisclosed AI art. Humans own fun, final art, GO/KILL and every gate tick."
+      "description": "Every game-dev loop in Claude Code: one-page design, build in small playtested slices, bot and agent playtests on your real build, balance sweeps and sims, iterate from evidence, human playtest logs and player feedback, and itch/Steam/web shipping that blocks undisclosed AI art. Humans own the fun and every gate."
     }
   ]
 }
