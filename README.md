@@ -59,7 +59,7 @@ Each loop is one skill (`/playbench:design`, `build`, `playtest`, `balance`, `it
 | Agent | Install |
 |---|---|
 | **Claude Code** | `/plugin marketplace add MihirSahu14/playbench` then `/plugin install playbench@playbench` |
-| **Codex** (CLI + app) | `codex plugin marketplace add MihirSahu14/playbench`, then install **playbench** from `/plugins` (or the app's Plugins tab) |
+| **Codex** (CLI + app) | `codex plugin marketplace add MihirSahu14/playbench` then `codex plugin add playbench@playbench` |
 | **GitHub Copilot CLI** | `copilot plugin install MihirSahu14/playbench` |
 | **Gemini CLI** | `gemini extensions install https://github.com/MihirSahu14/playbench` |
 | **Cursor, OpenCode, Windsurf, Amp, Goose, Cline, …** | `git clone https://github.com/MihirSahu14/playbench` then `python playbench/scripts/install.py` |
@@ -68,7 +68,7 @@ Each loop is one skill (`/playbench:design`, `build`, `playtest`, `balance`, `it
 
 Requires Python 3.11 or newer. Browser playtests also need Playwright, and the `art` skill needs Pillow. playbench prints the exact install line the first time you need one.
 
-<sub>Tested live in Claude Code. The other agents use each tool's documented plugin or skills format, not yet tested end to end. The gate-guard and auto-playtest hooks run in Claude Code and Codex. On other agents the same rules live in the skill text.</sub>
+<sub>Tested live in **Claude Code** and **Codex**, where the studio skill and a full bot playtest both pass. The other agents use each tool's documented plugin or skills format but haven't been tested end to end yet. The gate-guard and auto-playtest hooks run in Claude Code and Codex. On other agents the same rules live in the skill text.</sub>
 
 ## Try it in 60 seconds
 
@@ -102,7 +102,7 @@ Bots find what's broken. They can't tell you whether the game is **fun**. The ea
 ## Learn more
 
 - [Reference](docs/reference.md): commands, the probe contract (how bots read your game), the AI-art policy, state files
-- [Design spec and roadmap](docs/superpowers/specs/2026-10-13-playbench-design.md)
+- [Changelog](CHANGELOG.md) · [Design spec and roadmap](docs/superpowers/specs/2026-10-13-playbench-design.md)
 - **Coming next:** Godot native verified on a real Godot binary (today it is tested against a stub, so it stays experimental), Aseprite and uploads checked against the real tools, a hosted runner
 
 ## Contributing

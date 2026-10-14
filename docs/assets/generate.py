@@ -83,11 +83,11 @@ with sync_playwright() as pw:
     shot = next((GAME / "playtests" / "shots").glob("*crash*.png"))  # from the crash playtest above
     b64 = base64.b64encode(shot.read_bytes()).decode()
     bars = "".join(
-        f'<div class=row><span class=lbl>speed {v}</span><div class=track><div class=fill style="width:{max(w, 2)}%;background:{GREEN if w >= 67 else AMBER if w else RED}"></div></div><b class=pct>{w}%</b></div>'
-        for v, w in ((1.0, 100), (2.0, 100), (3.0, 0), (4.0, 33)))
+        f'<div class=row><span class=lbl>speed {v}</span><div class=track><div class=fill style="width:{max(w, 2)}%;background:{GREEN if w >= 67 else AMBER if w else RED}"></div></div><b class=pct>{w}%</b><span class="pct dim">{s}s</span></div>'
+        for v, w, s in ((1.0, 100, 19.1), (2.0, 67, 19.1), (3.0, 33, 4.3), (4.0, 33, 3.9)))  # balance.py sweep, 3 seeds x 25 s
     cards = [
         ("1", "Ask what's next", "you: what's next for this game?", f"""<b style=color:{BLUE}>Next: run a quick bot playtest.</b>
-Both must-list features are built.
+<span class=dim>design › build ›</span> <b class=y>[test]</b> <span class=dim>› balance › iterate › log › ship</span>
 
 <span class=y>Stage: playable</span>
   ☐ Latest quick playtest is PASS
@@ -97,8 +97,8 @@ Both must-list features are built.
 <span class=dim>…a bug sneaks in…</span>
 <span class=bad>FAIL</span> crash at 4.0s <span class=dim>(seed 1)</span>
 <span class=y>regression</span> win rate 1.0 → 0.0<img class=shot src="data:image/png;base64,{b64}">"""),
-        ("3", "Balance on the real build", "you: is bat speed balanced?", f"""<span class=dim>bot win rate per bat_speed</span>
-{bars}<span class=dim>cliff between 2 and 3 → tune there</span>"""),
+        ("3", "Balance on the real build", "you: is bat speed balanced?", f"""<span class=dim>bot win rate · median survival, per bat_speed</span>
+{bars}<span class=dim>survival falls off a cliff between 2 and 3</span>"""),
         ("4", "Ship only when you say so", "you: ship to itch", f"""<span class=bad>ARTGATE BLOCKED</span>
   hero_placeholder.png not disclosed
 <span class=ok>ARTGATE PASS</span> <span class=dim>after disclosure</span>
@@ -117,7 +117,7 @@ body{{margin:0;background:transparent;font-family:'Segoe UI',system-ui,sans-seri
 .dot{{width:11px;height:11px;border-radius:50%}} .t{{margin-left:10px;color:{DIM};font:13px 'Cascadia Code',Consolas,monospace}}
 .body{{padding:16px 20px;color:{TXT};font:15px/1.6 'Cascadia Code',Consolas,monospace;white-space:pre-wrap;position:relative}}
 .ok{{color:{GREEN};font-weight:bold}} .bad{{color:{RED};font-weight:bold}} .dim{{color:{DIM}}} .y{{color:{AMBER}}}
-.shot{{position:absolute;right:18px;top:18px;width:210px;border:2px solid {RED};border-radius:6px}}
+.shot{{position:absolute;right:18px;bottom:16px;width:160px;border:2px solid {RED};border-radius:6px}}
 .row{{display:flex;align-items:center;gap:12px;margin:9px 0}} .lbl{{width:92px}} .track{{flex:1;background:#21262d;border-radius:4px;height:20px}}
 .fill{{height:20px;border-radius:4px}} .pct{{width:48px;text-align:right}}
 </style></head><body><div id=g>""" + "".join(

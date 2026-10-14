@@ -1,10 +1,14 @@
 {
   "name": "playbench",
+  "displayName": "playbench",
   "version": "0.3.0",
   "description": "Every game-dev loop for AI coding agents (Claude Code, Codex, Cursor, Copilot, Gemini CLI and more): one-page design, build in small playtested slices, bot and agent playtests on your real build, balance sweeps and sims, iterate from evidence, human playtest logs and player feedback, and itch/Steam/web shipping that blocks undisclosed AI art. Humans own the fun and every gate.",
   "author": {
-    "name": "Mihir Sahu"
+    "name": "Mihir Sahu",
+    "url": "https://github.com/MihirSahu14"
   },
+  "homepage": "https://github.com/MihirSahu14/playbench",
+  "repository": "https://github.com/MihirSahu14/playbench",
   "license": "MIT",
   "keywords": [
     "gamedev",
@@ -17,6 +21,7 @@
     "game-jam",
     "indie"
   ],
-  "homepage": "https://github.com/MihirSahu14/playbench",
-  "repository": "https://github.com/MihirSahu14/playbench"
+  "icon": "./docs/assets/icon.png",
+  "documentationUrl": "https://github.com/MihirSahu14/playbench/blob/main/docs/reference.md",
+  "supportUrl": "https://github.com/MihirSahu14/playbench/issues"
 }
