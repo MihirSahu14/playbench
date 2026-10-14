@@ -46,7 +46,7 @@ Within a wave, file ownership is disjoint. Wave 2 builds on wave 1 (`script:` bo
 | `LOOPMAP` | `design > build > [test] > balance > iterate > log > ship` (current loop in brackets) |
 | `AUTO_PLAYTEST` | `on` or `off` (`studio.json` `"auto_playtest": false` turns it off; default on) |
 | `ITERATION` | `<n> <YYYY-MM-DD>` of the highest `design/iterations/<n>.md`, or `none` |
-| `SINCE_ITERATION` | `playtests:<a> human:<b> feedback:<c> balance:<d> telemetry:<e>`: files whose `YYYY-MM-DD` name prefix is on or after the ITERATION date (all files when `none`) in `playtests/*.json`, `playtests/*-human.md`, `feedback/*.md`, `balance/*.md`, `telemetry/*-report.md` |
+| `SINCE_ITERATION` | `playtests:<a> human:<b> feedback:<c> balance:<d> telemetry:<e>`: files whose `YYYY-MM-DD` name prefix is after the ITERATION date, or on it when the iteration record doesn't name the file (all files when `none`) in `playtests/*.json`, `playtests/*-human.md`, `feedback/*.md`, `balance/*.md`, `telemetry/*-report.md` |
 | `RUN` | as before, or a double-quoted absolute interpreter path when the venv fallback is used |
 | `VENV` | printed only when the venv fallback is suggested or used: its directory |
 

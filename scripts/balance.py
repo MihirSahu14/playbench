@@ -143,13 +143,16 @@ def costcurve(path, cost=None, benefit=None, id_col=None):
         die(f"a cost curve needs at least 3 items; {path} has {len(data)}")
     costs = nums(cc)
     bens = [sum(v) for v in zip(*(nums(i) for i in cols))]  # ponytail: unweighted sum; weight columns by hand if one matters more
-    try:
-        a, b = statistics.linear_regression(bens, costs)
-    except statistics.StatisticsError:
+    # Theil-Sen (median pairwise slope): least squares let one cheap, strong item drag the line onto itself and hide.
+    # ponytail: O(n^2) pairs, fine for item lists of a few thousand rows
+    slopes = [(costs[i] - costs[j]) / (bens[i] - bens[j]) for i in range(len(bens)) for j in range(i) if bens[i] != bens[j]]
+    if not slopes:
         die("every item has the same benefit, so there is no curve to fit")
+    a = statistics.median(slopes)
+    b = statistics.median(c - a * x for c, x in zip(costs, bens))
     res = [c - (a * x + b) for c, x in zip(costs, bens)]
-    sigma = statistics.pstdev(res)
-    L = [f"Cost curve: cost = {g(a)} x benefit {'-' if b < 0 else '+'} {g(abs(b))} (least squares, {len(data)} items)",
+    sigma = math.sqrt(statistics.fmean(e * e for e in res))  # RMS about the fit line: residuals are not mean-zero here
+    L = [f"Cost curve: cost = {g(a)} x benefit {'-' if b < 0 else '+'} {g(abs(b))} (robust Theil-Sen fit, {len(data)} items)",
          f"Benefit = {' + '.join(head[i] for i in cols)}", "",
          "| item | cost | benefit | fair cost | residual | flag |", "|---|---|---|---|---|---|"]
     out = []
@@ -159,7 +162,7 @@ def costcurve(path, cost=None, benefit=None, id_col=None):
             out.append(f"{r[ic]} ({flag})")
         L.append(f"| {r[ic]} | {g(c)} | {g(x)} | {g(a * x + b)} | {e:+.3g} | {flag} |")
     L += ["", f"Outliers beyond 2 sigma ({g(2 * sigma)}): {', '.join(out)}" if out else "No outliers beyond 2 sigma"
-          + (" (with under 6 items one outlier can't reach 2 sigma)" if len(data) < 6 else ""),
+          + (" (with under 5 items one outlier can't reach 2 sigma)" if len(data) < 5 else ""),
           "", "A cost curve only says which items are off the line; whether the line itself is fun is a human call."]
     return "\n".join(L)
 
@@ -363,6 +366,11 @@ def selftest():
         flagged = [l for l in cc.splitlines() if l.startswith("| ") and l.rstrip(" |").endswith(("overpriced", "cost)"))]
         assert len(flagged) == 1 and flagged[0].startswith("| gem_sword |") and "overpriced" in flagged[0], cc
         assert "fun is a human call" in cc and "Outliers beyond 2 sigma" in cc
+        (t / "mask.csv").write_text("id,cost,atk\n" + "".join(f"i{b},{2 * b},{b}\n" for b in (5, 7, 10, 12, 14)) + "crown,12,40\n")
+        cm = costcurve(t / "mask.csv")  # least squares fitted a flat line through crown and flagged nothing
+        assert [l for l in cm.splitlines() if "underpriced" in l][0].startswith("| crown |"), cm
+        (t / "five.csv").write_text("id,cost,atk\na,2,1\nb,4,2\nc,6,3\nd,8,4\ne,30,5\n")
+        assert "| e |" in [l for l in costcurve(t / "five.csv").splitlines() if "overpriced" in l][0]  # RMS sigma: 5 items can flag
         assert exits2(costcurve, t / "items.csv", "price") and exits2(costcurve, t / "nope.csv")
         print("ok costcurve")
 

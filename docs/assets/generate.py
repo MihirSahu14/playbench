@@ -130,30 +130,36 @@ body{{margin:0;background:transparent;font-family:'Segoe UI',system-ui,sans-seri
 srv.shutdown()
 
 # ---------- 2. horizontal flow diagram, light + dark SVG ----------
-NODES = [("Design", "one chat, one page"), ("Build", "one feature"), ("Bot playtest", "crash · freeze · softlock"),
-         ("Balance", "sweep the knobs"), ("Human playtest", "is it fun?"), ("Ship", "itch · Steam · web")]
+NODES = [("Design", "one chat, one page"), ("Build", "one small slice"), ("Bot playtest", "crashes · softlocks"),
+         ("Balance", "sweep the knobs"), ("Iterate", "rank the changes"), ("Human log", "you play: is it fun?"),
+         ("Ship", "itch · Steam · web")]
 def flow(th):
-    nw, gap, x0, y0, nh = 156, 40, 12, 34, 62
+    n, nw, gap, x0, y0, nh = len(NODES), 140, 26, 12, 34, 62
     cx = lambda i: x0 + i * (nw + gap) + nw / 2
-    W = x0 * 2 + 6 * nw + 5 * gap
-    s = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 6 {W} 162" width="{W}" height="162" font-family="Segoe UI,-apple-system,system-ui,sans-serif">',
+    W, yb = x0 * 2 + n * nw + (n - 1) * gap, y0 + nh
+    H = yb + 86  # room for the deepest loop-back curve and its label
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 6 {W} {H - 6}" width="{W}" height="{H - 6}" font-family="Segoe UI,-apple-system,system-ui,sans-serif">',
          f'<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="{th["line"]}"/></marker>'
          f'<marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="{th["red"]}"/></marker></defs>']
     for i, (t, sub) in enumerate(NODES):
         x = x0 + i * (nw + gap)
-        hot, ship = i == 2, i == 5
+        hot, ship = i == 2, i == n - 1
         fill, stroke = (th["hotfill"], th["green"]) if hot else (th["fill"], th["accent"] if ship else th["stroke"])
         s.append(f'<rect x="{x}" y="{y0}" width="{nw}" height="{nh}" rx="12" fill="{fill}" stroke="{stroke}" stroke-width="{2 if hot or ship else 1.2}"/>')
         s.append(f'<text x="{x + nw / 2}" y="{y0 + 27}" text-anchor="middle" font-size="16" font-weight="600" fill="{th["text"]}">{t}</text>')
         s.append(f'<text x="{x + nw / 2}" y="{y0 + 47}" text-anchor="middle" font-size="12" fill="{th["dim"]}">{sub}</text>')
-        if i < 5:
-            s.append(f'<line x1="{x + nw + 4}" y1="{y0 + nh / 2}" x2="{x + nw + gap - 4}" y2="{y0 + nh / 2}" stroke="{th["line"]}" stroke-width="1.6" marker-end="url(#a)"/>')
-    s.append(f'<text x="{cx(5) - nw / 2 - gap / 2}" y="{y0 - 10}" text-anchor="middle" font-size="12" font-weight="600" fill="{th["accent"]}">you tick the gates</text>')
-    yb = y0 + nh
-    s.append(f'<path d="M{cx(2)} {yb + 4} C{cx(2)} {yb + 44} {cx(1) + 18} {yb + 44} {cx(1) + 18} {yb + 6}" fill="none" stroke="{th["red"]}" stroke-width="1.6" marker-end="url(#r)"/>')
-    s.append(f'<text x="{cx(2) + 10}" y="{yb + 26}" text-anchor="start" font-size="12" font-weight="600" fill="{th["red"]}">FAIL → fix</text>')
-    s.append(f'<path d="M{cx(4)} {yb + 4} C{cx(4)} {yb + 82} {cx(1) - 18} {yb + 82} {cx(1) - 18} {yb + 6}" fill="none" stroke="{th["line"]}" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#a)"/>')
-    s.append(f'<text x="{(cx(1) + cx(4)) / 2}" y="{yb + 82}" text-anchor="middle" font-size="12" fill="{th["dim"]}">next feature</text>')
+        if i < n - 1:
+            s.append(f'<line x1="{x + nw + 3}" y1="{y0 + nh / 2}" x2="{x + nw + gap - 3}" y2="{y0 + nh / 2}" stroke="{th["line"]}" stroke-width="1.6" marker-end="url(#a)"/>')
+    s.append(f'<text x="{cx(n - 1) - nw / 2 - gap / 2}" y="{y0 - 10}" text-anchor="middle" font-size="12" font-weight="600" fill="{th["accent"]}">you tick the gates</text>')
+    def back(x1, x2, depth, color, dash=""):  # curve under the row, from x1 back to x2
+        s.append(f'<path d="M{x1} {yb + 4} C{x1} {yb + depth} {x2} {yb + depth} {x2} {yb + 6}" fill="none" stroke="{color}" '
+                 f'stroke-width="1.5"{dash} marker-end="url(#{"r" if color == th["red"] else "a"})"/>')
+    label = lambda x, y, t, color, anchor="start": s.append(
+        f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-size="12" font-weight="600" fill="{color}">{t}</text>')
+    dash = ' stroke-dasharray="5 4"'
+    back(cx(2), cx(1) + 18, 44, th["red"]); label(cx(2) + 10, yb + 26, "FAIL → fix", th["red"])
+    back(cx(5), cx(4) + 18, 44, th["dim"], dash); label(cx(5) + 10, yb + 26, "notes, feedback", th["dim"])
+    back(cx(4) - 18, cx(1) - 18, 82, th["dim"], dash); label((cx(1) + cx(4)) / 2 - 18, yb + 80, "next change", th["dim"], "middle")
     s.append("</svg>")
     return "\n".join(s)
 LIGHT = dict(fill="#ffffff", stroke="#d0d7de", text="#1f2328", dim="#656d76", line="#8c959f", green="#1a7f37", hotfill="#dafbe1", red="#cf222e", accent="#c4623f")

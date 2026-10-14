@@ -17,8 +17,6 @@ WRITER = re.compile(r"(?<!\d)>|\bsed\b|\bperl\b|\bawk\b|\btee\b|python|\bpy |\bn
 DENY = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
         "permissionDecisionReason": "playbench: only humans tick gates.md boxes. Tell the user which box the "
                                     "evidence supports and let them tick and commit it."}}
-NOT_GAME = ("playtests/", "balance/", "design/", "feedback/", "telemetry/", "store/", "steam/", "build/")
-NOT_GAME_FILES = {"studio.json", "gates.md", "disclosure.md", "art/PLACEHOLDERS.json", ".gitignore"}
 
 
 def ticks(text):
@@ -85,7 +83,7 @@ def stop(ev):
             continue
         skip = "R" in e[:2] or "C" in e[:2]
         rel = e[3:].removeprefix(prefix)
-        if rel.startswith(NOT_GAME) or rel in NOT_GAME_FILES or rel.endswith(".md"):
+        if rel.startswith(studio.NOT_GAME) or rel in studio.NOT_GAME_FILES or rel.endswith(".md"):
             continue
         dirty.append(root / e[3:])
     if not dirty:

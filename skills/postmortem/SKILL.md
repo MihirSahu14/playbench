@@ -21,7 +21,7 @@ Read only what exists; skip missing sources and say which were missing. Tally, d
 - **Bot playtests:** `playtests/*.json`: counts by `mode` (quick / milestone / final), verdicts, and the finding kinds of each FAIL over time (did crashes stop? did softlocks come back?).
 - **Human sessions:** `playtests/*-human.md`: how many, tester types, and experience goals met / not met / unclear in the first vs the last session.
 - **Balance:** `balance/*.md` and `balance/last.json`: what was swept and what changed.
-- **Gates:** `<RUN> "<PLUGIN>/scripts/ship.py" gate .` audits the current stage only (who ticked each box, and when); `git log --format="%ad %an %s" --date=short -- gates.md` gives the earlier stages' tick history. Read them; never change `gates.md`.
+- **Gates:** `<RUN> "<PLUGIN>/scripts/ship.py" gate .` audits the last `## <stage>` (the release stage) only: who ticked each box, and when; `git log --format="%ad %an %s" --date=short -- gates.md` gives the earlier stages' tick history. Read them; never change `gates.md`.
 - **Feedback:** `feedback/*.md`: the top issues, and for each whether a later commit, iteration or playtest shows it resolved (`resolved`, `open`, or `unknown` when nothing shows either).
 - **Iterations and build log:** `design/iterations/*.md` and `design/build-log.md` against `## Scope` in `design/design.md`: must items planned vs done, and the hours budget vs the time actually spent (calendar days from git; hours only if the build log or journal records them).
 - **Journal:** `design/journal.md` for blockers and mood in the user's own words.

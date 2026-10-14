@@ -9,7 +9,7 @@
 Library: run(build, ...) -> report dict (spec: Report JSON). Stdlib only; playwright is imported lazily.
 A build is a dir, a .zip, or either with a ?query suffix that is passed to the game (?bug=crash).
 """
-import argparse, csv, hashlib, io, json, os, random, shutil, statistics, subprocess, sys, tempfile, threading, time, zipfile
+import re, argparse, csv, hashlib, io, json, os, random, shutil, statistics, subprocess, sys, tempfile, threading, time, zipfile
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta
 from functools import partial
@@ -235,6 +235,11 @@ def web_session(root, query, overrides, realtime, coop):
                 pg.keyboard.press("Enter")
                 pg.keyboard.press("Space")
                 adv(1000)
+                for _ in range(3):  # ponytail: retry the start press only while state says paused; fixed 3 tries
+                    if not pg.evaluate("()=>{const s=window.__playbench.read();return !!(s&&s.paused)}"):
+                        break
+                    pg.keyboard.press("Enter")
+                    adv(1000)
                 hasbot, acts = pg.evaluate("()=>[typeof window.__game?.bot==='function', window.__game?.actions]")
                 rec["actions"] = acts if isinstance(acts, list) and acts else WEB_ACTIONS
                 moves = [a for a in rec["actions"] if a not in START_KEYS]
@@ -368,7 +373,7 @@ def stuck(seq, span=5.0):
     return None
 
 
-def detect(main, replay, tier, mode):
+def detect(main, replay, tier, mode, realtime=False):
     out, extra = [], replay[0] + replay[1] if replay else []
     add = lambda kind, sev, r, t, detail: out.append(
         dict(kind=kind, severity=sev, seed=r["seed"], bot=r["bot"], t=t, detail=detail, _png=r["png"]))
@@ -382,8 +387,11 @@ def detect(main, replay, tier, mode):
                 add("crash", "FAIL", r, t, m)
         for m in r["console"]:
             msgs.setdefault(m, r)
-    for m, r in list(msgs.items())[:5]:
-        add("console_error", "WARN", r, None, m[:200])
+    for m, r in list(msgs.items())[:5]:  # Unity WebGL catches C# exceptions and only logs them: treat as a crash
+        if (re.match(r"^[\w.]+Exception: ", m) and "\n  at " in m) or "Uncaught exception from main loop" in m or "Halting program" in m:
+            add("crash", "FAIL", r, None, m.splitlines()[0][:200])
+        else:
+            add("console_error", "WARN", r, None, m.splitlines()[0][:200] if m else m)
     for r in main:
         if r["errors"]:
             continue  # the crash already explains the stall
@@ -395,7 +403,7 @@ def detect(main, replay, tier, mode):
         (idle, again), holds, key = replay
         if idle[key] != again[key]:
             add("nondeterministic", "WARN", again, None,
-                "two idle runs on seed 1 differ; dead-input check skipped (try --realtime, or a no-threads export)")
+                "two idle runs on seed 1 differ; dead-input check skipped" + ("" if realtime else " (try --realtime, or a no-threads export)"))
         elif holds and all(h[key] == idle[key] for h in holds):
             add("dead_input", "FAIL" if tier else "WARN", holds[0], REPLAY_S,
                 f"holding {', '.join(h['bot'][5:] for h in holds)} for {REPLAY_S}s ends identical to idle")
@@ -530,7 +538,7 @@ def write_reports(rep, out_dir, film=()):
     for f in rep["findings"]:
         if f["severity"] == "FAIL" and f["_png"]:
             (out / "shots").mkdir(exist_ok=True)
-            f["shot"] = f"shots/{stamp}-{f['kind']}-s{f['seed']}.png"
+            f["shot"] = f"shots/{stamp}-{f['kind']}-s{f['seed']}-{f['bot']}.png"
             (out / f["shot"]).write_bytes(f["_png"])
         del f["_png"]
     (out / f"{base}.json").write_text(json.dumps(rep, indent=1), "utf-8")
@@ -583,7 +591,7 @@ def run(build, mode="quick", bot=None, seeds=None, seconds=None, overrides=None,
                 main = main[:1] if main[0]["boot"] else main
                 tier = tier if replay else main[0]["tier"]
     tier = tier or 0
-    findings = detect(main, replay, tier, mode)
+    findings = detect(main, replay, tier, mode, realtime)
     verdict = "FAIL" if any(f["severity"] == "FAIL" for f in findings) else "WARN" if findings else "PASS"
     runs = [{k: r[k] for k in ("seed", "bot", "seconds", "over", "won", "time_to_over", "final")} for r in main if not r["boot"]]
     film = main[0]["film"] if main and mode in ("milestone", "final") else []  # first main run only

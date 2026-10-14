@@ -79,7 +79,7 @@ When: menus, puzzles, choice-driven games, or when a quick run stalls at a choic
   - **Newbie:** first time, reads nothing. **Min-maxer:** optimal play and exploits. **Explorer:** edges, boundaries, secrets. **Quitter:** when and why they would stop.
   - Each returns at most 5 bullets. Replace `(pending)` under `## Persona commentary` with `### <Persona> (AI persona, opinion only)` sections.
   - Never phrase it as fun / not fun, never tick a box. Humans decide.
-- Point the human to `playtests/<stamp>-sheet.md`: play the game with a real person, fill in the sheet, and save it as `playtests/<date>-human.md`. Only a human sheet can mark experience goals met.
+- Point the human to `playtests/<stamp>-sheet.md`: play the game with a real person, fill in the sheet, then log it with `/playbench:log` (it writes `playtests/<date>-<HHMM>-human.md`). Only a human sheet can mark experience goals met.
 - `playtest.py sheet <game> --out playtests` prints a fresh sheet any time; write-ups go through `/playbench:log`.
 - `playtest.py survey <game> --out playtests` writes a 2-minute anonymous survey (one 1-5 statement per experience goal, plus a Google Forms paste block). Responses go through `/playbench:log`.
 

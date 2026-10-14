@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import studio  # noqa: E402  the one list of playbench-owned paths
 which = shutil.which  # the one binary resolver for butler/steamcmd/netlify; the selftest swaps it for stubs
 STORE = {
     'itch': {'max_files': 1000, 'max_total_mb': 500, 'max_file_mb': 200, 'max_path': 240},
@@ -30,15 +32,14 @@ KEYS = {b'parameters', b'prompt', b'workflow'}
 ABS = re.compile(r"""(?:src|href)\s*=\s*["']/(?!/)|url\(\s*["']?/(?!/)|fetch\(\s*["']/(?!/)""")
 ASSET = re.compile(r"""["']([\w./-]+\.(?:png|jpe?g|webp|gif|svg|ogg|mp3|wav|json|csv|js|css|wasm|pck|html))["']""")
 # excluded only when build_dir is the game root, so playbench state and dotfiles (.env) never reach an upload
-SKIP = {'build', 'playtests', 'steam', 'store', 'balance', 'design', 'feedback', 'telemetry'}
-SKIP_FILES = {'studio.json', 'gates.md', 'disclosure.md', 'art/PLACEHOLDERS.json', 'art/bible.md', 'netlify.toml'}
+SKIP = {p.split('/')[0] for p in studio.NOT_GAME}  # 'build/upload/' skips all of build/
+SKIP_FILES = set(studio.NOT_GAME_FILES) | {'gates.md', 'disclosure.md', 'art/bible.md'}  # studio drops every .md itself
 SKIP_EXT = ('.ase', '.aseprite')  # Aseprite sources stay out of uploads
 MB = 1_000_000  # ponytail: decimal MB, the stricter reading of itch's limits
 
 
 def _run(build, mode='boot'):
     """Hook for playtest.run; the selftest swaps in a fake."""
-    sys.path.insert(0, str(HERE))
     from playtest import run
     return run(build, mode=mode)
 
@@ -110,11 +111,13 @@ def flag_file(path, name, names):
 
 
 def scan(game, dirs):
-    try:
-        ph = json.loads((game / 'art/PLACEHOLDERS.json').read_text(encoding='utf-8-sig')).get('placeholders', [])
-    except (OSError, ValueError):
-        ph = []
-    names = {posixpath.basename(p.get('path', '').replace('\\', '/')) for p in ph} - {''}
+    f = game / 'art' / 'PLACEHOLDERS.json'
+    try:  # a broken list must stop the gate, not silently un-list every placeholder in it
+        ph = json.loads(f.read_text(encoding='utf-8-sig')).get('placeholders', []) if f.exists() else []
+        names = {posixpath.basename(p.get('path', '').replace('\\', '/')) for p in ph} - {''}
+    except (OSError, ValueError, AttributeError, TypeError) as e:
+        print(f'ERROR {relto(f, game)} is unreadable ({e}); it must be {{"placeholders": [{{"path": "art/x_placeholder.png", ...}}]}}')
+        raise SystemExit(2)
     flags = {}
     for d in dirs:
         base = (game / d).resolve()
@@ -237,6 +240,26 @@ def build_of(game, c):
     raise SystemExit(2)
 
 
+def upload_dir(game, build):
+    """build_dir itself, or for the game root a fresh copy of the upload files only (as in the itch zip), so a
+    Netlify site or Steam depot never publishes playtest notes, telemetry, design docs or .git."""
+    if build != game.resolve(): return build
+    out = game / 'build' / 'upload'
+    try:  # a locked file left behind would ship a file already deleted from the game
+        if out.exists(): shutil.rmtree(out)
+    except OSError as e:
+        print(f'ERROR cannot clear {out} ({e}); close whatever holds it open and rerun')
+        raise SystemExit(2)
+    out.mkdir(parents=True)
+    gi = out.parent / '.gitignore'
+    if not gi.exists(): gi.write_text('# playbench: staged copy, rebuilt by every ship run\nupload/\n', encoding='utf-8')
+    for rel in walk(build, game):
+        (out / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(build / rel, out / rel)
+    print(f'staged {out} (build_dir is the game root: the game files only, without playbench state, notes or telemetry)')
+    return out
+
+
 def verdict_line(reasons, real_cmd, what='upload', run=None, cwd=None):
     """Prints the real command, or with run=[tool, *args] (--real) executes it once every check passed."""
     print()
@@ -287,10 +310,11 @@ def web(game, host=None, real=False):
         print('ERROR --real needs --host netlify (GitHub Pages is a git push, which you always run yourself)')
         return 2
     build = build_of(game, cfg(game))
-    errs, rel = limits(build, walk(build, game), itch=False), relto(build, game)
+    pub = upload_dir(game, build) if host in (None, 'netlify') else build  # check what ships, not the game root
+    errs, rel = limits(pub, walk(pub, game), itch=False), relto(build, game)
     q = lambda s: subprocess.list2cmdline([s])  # quotes a build_dir with spaces in the printed commands
     print('\n'.join(f'BLOCKED {e}' for e in errs) or 'index.html and URLs PASS')
-    verdict = boot(build)
+    verdict = boot(pub)
     if host in (None, 'pages'):
         print('\nGitHub Pages (run it yourself; ship.py never runs git push):')
         if rel == '.':
@@ -301,9 +325,10 @@ def web(game, host=None, real=False):
             print(f'  (b) docs/ folder: `mkdir -p docs && cp -r {q(rel + "/.")} docs/`, commit and push main,\n'
                   '      then Settings > Pages > Source: main, /docs.')
     if host in (None, 'netlify'):
-        toml = game / 'netlify.toml'
+        rel, toml = relto(pub, game), game / 'netlify.toml'
+        cli = ' (CLI deploys only: rerun ship.py web first, a git-connected site has no build/upload)' if pub != build else ''
         if host and not toml.exists():
-            toml.write_text(f'# playbench: netlify deploy publishes this folder; edit freely, ship.py never overwrites it\n'
+            toml.write_text(f'# playbench: netlify deploy publishes this folder{cli}; edit freely, ship.py never overwrites it\n'
                             f'[build]\n  publish = {json.dumps(rel)}\n', encoding='utf-8')  # a JSON string is a valid TOML string
             print(f'\nwrote {toml}')
         print(f'\nNetlify dry run (draft URL, check it first): netlify deploy --dir {q(rel)}')
@@ -372,7 +397,7 @@ def steam(game, real=False):
     if miss:
         print(f'ERROR studio.json is missing {", ".join(miss)}; add "steam": {{"appid": <app id>, "depotid": <depot id>}}')
         return 2
-    build, vdf = build_of(game, c), (game / 'steam' / 'app_build.vdf').resolve()
+    build, vdf = upload_dir(game, build_of(game, c)), (game / 'steam' / 'app_build.vdf').resolve()
     write_vdf(vdf, s['appid'], s['depotid'], build, 1)
     print(f'wrote {vdf} (Preview "1": checks the build, uploads nothing)')
     errs = store_errs(game)
@@ -417,7 +442,7 @@ def demo(game):
         print('Add "demo_appid" and "demo_depotid" under "steam" in studio.json to get steam/demo_build.vdf.')
         return 0
     vdf = (game / 'steam' / 'demo_build.vdf').resolve()
-    write_vdf(vdf, s['demo_appid'], s['demo_depotid'], build_of(game, c), 1)
+    write_vdf(vdf, s['demo_appid'], s['demo_depotid'], upload_dir(game, build_of(game, c)), 1)
     print(f'wrote {vdf} (Preview "1": checks the build, uploads nothing)')
     print(f'Preview (run it yourself): {steamcmd_line(s.get("builder"), vdf)}')
     return 0
@@ -567,6 +592,15 @@ def selftest():
             print('ok artgate dodge-web blocked')
         else:
             print('SKIP artgate dodge-web: examples/dodge-web/art/hero_placeholder.png not found')
+        for bad in ('[]', '{"placeholders": "x"}', '{oops'):  # malformed list: setup error, never a silent pass
+            bp = put(tmp / 'badph', {'studio.json': '{"build_dir": "."}', 'index.html': '', 'art/PLACEHOLDERS.json': bad})
+            try:
+                cap(artgate, bp)
+                code = None
+            except SystemExit as e:
+                code = e.code
+            assert code == 2, bad
+        print('ok artgate malformed PLACEHOLDERS.json')
 
         # 2. itch limits, each violation planted alone
         def errs_for(name, files):
@@ -621,6 +655,7 @@ def selftest():
         code, out = cap(steam, s)
         vdf = (s / 'steam' / 'app_build.vdf').read_text()
         assert code == 1 and '"Preview" "1"' in vdf and '"481"' in vdf and 'withheld' in out and 'REAL UPLOAD' not in out, out
+        assert '/build/upload"' in vdf and not (s / 'build' / 'upload' / 'studio.json').exists(), vdf  # depot gets game files only
         assert 'small_capsule.png: 100x100' in out and 'vertical_capsule.png: missing' in out and '4 screenshots' in out, out
         print('ok steam vdf + IHDR')
         lib = put(tmp / 'lib', dict(steam_ok))
@@ -657,12 +692,19 @@ def selftest():
         print('ok theme')
 
         # 4c. web hosts (dry run) and demo
-        w = put(tmp / 'web', {'studio.json': '{"build_dir": "."}', 'index.html': '<p>hi</p>'})
+        w = put(tmp / 'web', {'studio.json': '{"build_dir": "."}', 'index.html': '<p>hi</p>', 'playtests/a-human.md': 'notes',
+                              'telemetry/t.jsonl': '{}'})
+        booted, fake = [], _run
+        _run = lambda build, mode='boot': booted.append(build) or fake(build, mode)
         cap(web, w, 'netlify')
-        assert 'publish = "."' in (w / 'netlify.toml').read_text()
+        _run = fake
+        assert booted == [str(w / 'build' / 'upload')], booted  # boot checks the staged copy that ships, not the root
+        assert 'publish = "build/upload"' in (w / 'netlify.toml').read_text() and 'CLI deploys only' in (w / 'netlify.toml').read_text()
+        assert 'upload/' in (w / 'build' / '.gitignore').read_text()  # the staged copy never lands in git
+        assert sorted(f.name for f in (w / 'build' / 'upload').rglob('*')) == ['index.html']  # no notes or telemetry
         (w / 'netlify.toml').write_text('# mine\n')
         code, out = cap(web, w, 'netlify')
-        assert (w / 'netlify.toml').read_text() == '# mine\n' and 'netlify deploy --dir .' in out and 'git subtree' not in out, out
+        assert (w / 'netlify.toml').read_text() == '# mine\n' and 'netlify deploy --dir build/upload' in out and 'git subtree' not in out, out
         wp = put(tmp / 'webp', {'studio.json': '{"build_dir": "my public"}', 'my public/index.html': '<p>hi</p>'})
         code, out = cap(web, wp, 'pages')
         assert 'git subtree push --prefix "my public" origin gh-pages' in out and 'run it yourself' in out, out
@@ -719,7 +761,7 @@ def selftest():
         assert '"Preview" "0"' in (r / 'steam' / 'app_build.vdf').read_text()
         log.unlink()
         code, out = cap(web, r, 'netlify', True)
-        assert code == 0 and 'deploy --dir . --prod' in log.read_text(), (out, log.read_text())
+        assert code == 0 and 'deploy --dir build/upload --prod' in log.read_text(), (out, log.read_text())
         log.unlink()
         which = lambda name: None
         code, out = cap(itch, r, True)

@@ -48,6 +48,9 @@ VENV_PY = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 LOOPS = ["design", "build", "test", "balance", "iterate", "log", "ship"]
 SINCE = {"playtests": "playtests/*.json", "human": "playtests/*-human.md", "feedback": "feedback/*.md",
          "balance": "balance/*.md", "telemetry": "telemetry/*-report.md"}
+# playbench's own records and any .md are not game changes: committing a report or a session log adds no debt
+NOT_GAME = ("playtests/", "balance/", "design/", "feedback/", "telemetry/", "store/", "steam/", "build/upload/")
+NOT_GAME_FILES = ("studio.json", "art/PLACEHOLDERS.json", ".gitignore", "build/.gitignore", "build/itch.zip", "netlify.toml")
 
 
 def detect(d):
@@ -129,11 +132,12 @@ def install_line(run, managed, venv_py):
 
 
 def commits_since(d, since):
-    """Commits touching the game dir since `since` (all if None); None when not a git repo or git is missing."""
+    """Commits touching game files in the game dir since `since` (all if None); None when not a git repo or git is missing."""
     if not shutil.which("git") or subprocess.run(["git", "-C", str(d), "rev-parse", "--git-dir"],
                                                  capture_output=True).returncode:
         return None
-    cmd = ["git", "-C", str(d), "rev-list", "--count"] + ([f"--since={since}"] if since else []) + ["HEAD", "--", "."]
+    cmd = ["git", "-C", str(d), "rev-list", "--count"] + ([f"--since={since}"] if since else []) + [
+        "HEAD", "--", ".", *(f":(exclude){p}" for p in NOT_GAME + NOT_GAME_FILES), ":(exclude,glob)**/*.md"]
     r = subprocess.run(cmd, capture_output=True, text=True)
     return int(r.stdout) if r.returncode == 0 and r.stdout.strip().isdigit() else 0  # no HEAD yet = 0
 
@@ -156,18 +160,20 @@ def debt(d, pattern, limit, since_of):
 
 
 def iteration(d):
-    """(ITERATION value, its YYYY-MM-DD or None) from the highest design/iterations/<n>.md."""
+    """(ITERATION value, its YYYY-MM-DD or None, record text) from the highest design/iterations/<n>.md."""
     its = [(int(f.stem), f) for f in (d / "design" / "iterations").glob("*.md") if f.stem.isdigit()]
     if not its:
-        return "none", None
+        return "none", None, ""
     n, f = max(its)
-    m = re.match(r"#\s*Iteration\s+\d+\s*\((\d{4}-\d{2}-\d{2})\)", f.read_text("utf-8", "ignore"))
-    return f"{n} {m[1] if m else '?'}", m and m[1]  # ponytail: an unreadable date counts every file as new
+    text = f.read_text("utf-8", "ignore")
+    m = re.match(r"#\s*Iteration\s+\d+\s*\((\d{4}-\d{2}-\d{2})\)", text)
+    return f"{n} {m[1] if m else '?'}", m and m[1], text  # ponytail: an unreadable date counts every file as new
 
 
-def since_counts(d, date):
-    return {k: sum(1 for f in d.glob(pat)
-                   if date is None or ((m := re.match(r"\d{4}-\d{2}-\d{2}", f.name)) and m[0] >= date))
+def since_counts(d, date, record):
+    """Files dated after the iteration, plus same-day ones its record does not already name as evidence."""
+    return {k: sum(1 for f in d.glob(pat) if date is None or ((m := re.match(r"\d{4}-\d{2}-\d{2}", f.name))
+                                                              and (m[0] > date or m[0] == date and f.name not in record)))
             for k, pat in SINCE.items()}
 
 
@@ -235,8 +241,8 @@ def status(d):
     print(f"BALANCE={'on' if p['balance'] else 'off'}")
     if cfg.get("ai_policy") == "banned":
         print(f"ALLOWED={ALLOWED}")
-    it, it_date = iteration(d)
-    sc = since_counts(d, it_date)
+    it, it_date, record = iteration(d)
+    sc = since_counts(d, it_date, record)
     print(f"AUTO_PLAYTEST={'off' if cfg.get('auto_playtest') is False else 'on'}")
     print(f"ITERATION={it}\nSINCE_ITERATION={' '.join(f'{k}:{v}' for k, v in sc.items())}")
     # LOOP: first match wins, from files and git only (plan contract C1)
@@ -522,9 +528,10 @@ def selftest():
             subprocess.run(["git", "-C", str(r), "init", "-q"], check=True)
             for i in range(3):
                 commit(r, f"f{i}.txt", str(i), f"c{i}")
-            assert kv(call("status", str(r))[1])["DEBT_QUICK"] == "3/5"
             pt = r / "playtests"
             pt.mkdir()
+            commit(r, "notes.md", "n", "notes"); commit(r, "playtests/x-human.txt", "h", "log")  # records, not game changes
+            assert kv(call("status", str(r))[1])["DEBT_QUICK"] == "3/5"
             (pt / "2000-01-01-0000-quick.json").write_text('{"at":"2000-01-01T00:00:00"}')
             st = kv(call("status", str(r))[1])
             assert st["DEBT_QUICK"] == "3/5" and st["DEBT_HUMAN"] == "3/20", st
@@ -552,6 +559,11 @@ def selftest():
             (r / "feedback").mkdir(); (r / "feedback" / "2099-01-01-discord.md").write_text("- too hard\n")
             st = kv(call("status", str(r))[1])
             assert st["LOOP"] == "iterate" and "feedback:1" in st["SINCE_ITERATION"], st
+            # a same-day iteration that lists them as evidence has used them up
+            (it / "1.md").write_text("# Iteration 1 (2099-01-01)\n## Evidence\n- feedback/2099-01-01-discord.md\n"
+                                     "- playtests/2099-01-01-human.md\n")
+            st = kv(call("status", str(r))[1])
+            assert "human:0 feedback:0" in st["SINCE_ITERATION"] and st["LOOP"] == "build", st
             (it / "2.md").write_text("# Iteration 2 (2099-01-05)\n")
             for m in ("milestone", "final"):
                 (pt / f"2099-01-05-0000-{m}.json").write_text('{"verdict":"PASS"}')

@@ -10,7 +10,8 @@
     {
       "name": "playbench",
       "source": "./",
-      "description": "Game-dev loops for Claude Code: one-page design, build in playtested slices, bots that play the real build, balance sweeps, iterate from evidence, human playtest logs, and itch/Steam ship checks that block undisclosed AI art. Humans own fun, final art, GO/KILL and every gate tick."
+      "version": "0.2.0",
+      "description": "Game-dev loops for Claude Code: one-page design, build in playtested slices, bots and agent playtests on the real build, balance sweeps and economy sims, iterate from evidence, human playtest logs and player feedback, labelled placeholder art, and itch/Steam/web ship checks that block undisclosed AI art. Humans own fun, final art, GO/KILL and every gate tick."
     }
   ]
 }

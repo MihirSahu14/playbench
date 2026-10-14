@@ -76,6 +76,8 @@ Flow: run the printed **preview** steamcmd command first (it uploads nothing). W
 - **pages:** (a) `git subtree push --prefix <build> origin gh-pages`, then Settings > Pages > gh-pages; or (b) copy the build into `docs/` and pick main /docs. The user runs these.
 - **netlify:** writes `netlify.toml` (`publish = "<build>"`) only if absent, never overwriting theirs; prints `netlify deploy --dir <build>` for a draft URL, then the `--prod` command when everything passes.
 
+When `build_dir` is the game root, netlify, steam and demo use `build/upload`: a fresh copy of only the game files (like the itch zip), so notes, telemetry, design docs and `.git` are never published. The boot check runs on that copy, `build/.gitignore` keeps it out of git, and its `netlify.toml` suits CLI deploys only (a git-connected Netlify site has no `build/upload`).
+
 ## 7. --real (gated upload)
 `itch`, `steam` and `web --host netlify` accept `--real`. It runs the upload only when artgate passes, **every** `## <stage>` in `gates.md` is fully ticked, committed and tracked, and the boot check passes (itch/web). It prints `RAN <cmd>` and `UPLOAD_EXIT=<code>` and exits with the tool's code. Otherwise `Real upload command withheld: <reasons>` (exit 1, nothing ran). If the tool isn't on PATH it prints the command and `<tool> not found on PATH, so nothing ran`. Steam needs `steam.builder` (the Steam build account) in `studio.json` to run; without it the command is printed with `<your_steam_user>`. Remember the hard rule: hand the user the command by default.
 

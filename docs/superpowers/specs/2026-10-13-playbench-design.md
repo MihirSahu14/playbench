@@ -49,12 +49,12 @@ Four inputs drive adaptation:
 | Version | Adds | Status |
 |---|---|---|
 | **v1** | Everything listed above | done |
-| v1.1 | PreToolUse gate guard; auto quick-playtest Stop hook; `balance costcurve` and `balance sim`; Steam library assets; `studio aiuse`; `mash` and scripted-input bots; interpreter discovery hardening (venv fallback) | **this round** |
-| v1.2 | Godot balance sweeps via user args; windowed Godot screenshots; Construct and GDevelop adapters with a fixture-free test; Godot selftest steps that run only with a real binary or cached web templates | **this round** (Godot stays EXPERIMENTAL) |
-| v2 | `art` skill (bible, animation list, Pillow placeholders, atlas packing, Aseprite wrapper, naming lint); itch theme generator; survey generator; GitHub Pages and Netlify automation (dry-run by default) | **this round** |
-| v3 | Decision-point agent playtests; persona commentary; payoff-matrix balance; telemetry ingestion; `feedback` and `postmortem` skills; Steam Playtest and Next Fest flow; `--real` uploads | **this round** |
-| loops | `build`, `iterate` and `log` skills; loop orchestration in `status` | **this round** |
-| later | Godot native marked **verified** (needs the user's OK to download the 82 MB editor); hosted paid runner | **excluded** from this round |
+| v1.1 | PreToolUse gate guard; auto quick-playtest Stop hook; `balance costcurve` and `balance sim`; Steam library assets; `studio aiuse`; `mash` and scripted-input bots; interpreter discovery hardening (venv fallback) | done (0.2.0) |
+| v1.2 | Godot balance sweeps via user args; windowed Godot screenshots; Construct and GDevelop adapters with a fixture-free test; Godot selftest steps that run only with a real binary or cached web templates | done (0.2.0); the Godot parts are tested against a stub only, so Godot stays EXPERIMENTAL |
+| v2 | `art` skill (bible, animation list, Pillow placeholders, atlas packing, Aseprite wrapper, naming lint); itch theme generator; survey generator; GitHub Pages and Netlify automation (dry-run by default) | done (0.2.0); Aseprite and Netlify tested against stubs only |
+| v3 | Decision-point agent playtests; persona commentary; payoff-matrix balance; telemetry ingestion; `feedback` and `postmortem` skills; Steam Playtest and Next Fest flow; `--real` uploads | done (0.2.0); `--real` tested against butler/steamcmd/netlify stubs only, never a real upload |
+| loops | `build`, `iterate` and `log` skills; loop orchestration in `status` | done (0.2.0) |
+| later | Godot native marked **verified** (needs the user's OK to download the 82 MB editor); Aseprite and real-upload checks against the real tools; hosted paid runner | **remaining** |
 
 Not planned: mobile-native, Roblox/UEFN and consoles. They have closed runtimes and no headless path.
 

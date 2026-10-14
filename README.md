@@ -32,8 +32,20 @@ playbench catches each of those early:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/flow-dark.svg">
-  <img src="docs/assets/flow-light.svg" width="100%" alt="Design, build, bot playtest (FAIL loops back to build), balance, human playtest, ship once you tick the gates">
+  <img src="docs/assets/flow-light.svg" width="100%" alt="Design, build, bot playtest (FAIL loops back to build), balance, iterate, human log (notes and feedback feed iterate), ship once you tick the gates">
 </picture>
+
+Each loop is one skill (`/playbench:design`, `build`, `playtest`, `balance`, `iterate`, `log`, `ship`), and `status` tells you which loop you are in. Also new in 0.2:
+
+| | |
+|---|---|
+| 🔁 **Auto-playtest hook** | When game changes pile up, Claude is reminded to run a one-minute bot playtest |
+| 🔒 **Gate guard** | Claude can't tick a `gates.md` box, even if asked |
+| 🧭 **Agent playtests** | Claude plays menus and choices step by step from screenshots, and the path replays as a test |
+| 🎭 **Personas** | Newbie, min-maxer, explorer and quitter comment on milestone runs (opinion, not a fun verdict) |
+| 🎨 **`art`** | Art bible, clearly labelled `_placeholder` sprites, atlases; ship blocks undisclosed ones |
+| 💬 **`feedback`** | Player comments from itch, Discord or a survey into one ranked list |
+| 📝 **`postmortem`** | What went right and wrong, with numbers from git and your playtests |
 
 ## See it work
 
@@ -71,7 +83,7 @@ Open Claude Code in your game folder and just talk:
 | 🎨 **Designer who codes a little** | Claude writes the test hooks and bots; you tune numbers in data files |
 | 🎓 **Student** | A course AI policy (open, disclose or banned) and an honest record of AI use |
 
-**Engines:** any HTML5 export (plain JS, Phaser, Godot web, Unity WebGL, GameMaker, Construct, GDevelop). Godot native is experimental.
+**Engines:** any HTML5 export (plain JS, Phaser, Godot web, Unity WebGL, GameMaker, Construct, GDevelop). **Verified on plain JS and Unity 6 WebGL** ([examples](examples)). Godot native is experimental.
 
 ## What bots can't do
 
@@ -81,7 +93,7 @@ Bots find what's broken. They can't tell you whether the game is **fun**. playbe
 
 - [Reference](docs/reference.md): commands, the probe contract (how bots read your game), the AI-art policy, state files
 - [Design spec and roadmap](docs/superpowers/specs/2026-10-13-playbench-design.md)
-- **Coming next:** auto-playtest hooks, balance for bundled data and Godot, a sprite pipeline, itch page themes
+- **Coming next:** Godot native verified on a real Godot binary (today it is tested against a stub, so it stays experimental), Aseprite and uploads checked against the real tools, a hosted runner
 
 ## Contributing
 

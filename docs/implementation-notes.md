@@ -11,6 +11,6 @@
 - **`claude plugin validate . --strict`.** It first warned `No marketplace description provided`. Fixed by adding `metadata.description` to `marketplace.json`, after which it printed `✔ Validation passed`. `claude plugin validate .claude-plugin/plugin.json --strict` passes as well.
 
 **Small deliberate choices:**
-- **Debt is counted for the game folder only.** `status` counts debt with `git rev-list --count --since=<at> HEAD -- .`. The `-- .` limits the count to commits touching the game folder, so a game nested inside a bigger repo (like `examples/`) isn't charged for unrelated commits.
+- **Debt is counted for the game folder only.** `status` counts debt with `git rev-list --count --since=<at> HEAD -- .`. The `-- .` limits the count to commits touching the game folder, so a game nested inside a bigger repo (like `examples/`) isn't charged for unrelated commits. Exclude pathspecs also drop playbench's own records (`studio.py` `NOT_GAME` / `NOT_GAME_FILES`) and any `.md`, so committing a report or a session log adds no debt; `hooks.py` and `ship.py`'s upload filter use the same lists.
 - **Git date limit.** Git's date parser rejects years after 2099. The selftest uses 2099 for its "future report" case.
 - **`status` always exits 0**, even when `studio.json` is broken. Otherwise the SKILL's `||` chain would fall through and wrongly report "no working Python".

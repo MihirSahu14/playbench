@@ -15,7 +15,7 @@ The status lines above give `CONTEXT`, `CODING`, `AI_POLICY`, `ITERATION`, `SINC
 - `AI_POLICY=banned`: Claude gathers and explains the evidence and the table; the student picks and edits every file.
 
 ## 1. Gather everything since the last iteration
-The cut-off is the date in `ITERATION` (`none`: everything). Read files whose `YYYY-MM-DD` name prefix is on or after it, skipping any already listed under `## Evidence` in the previous `design/iterations/<n>.md` (same-day files still count in `SINCE_ITERATION`):
+The cut-off is the date in `ITERATION` (`none`: everything). Read files whose `YYYY-MM-DD` name prefix is on or after it, skipping any already listed under `## Evidence` in the previous `design/iterations/<n>.md` (`SINCE_ITERATION` skips those too):
 | Source | What to pull |
 |---|---|
 | `playtests/*.json` (bot reports) | `verdict`, `findings`, `regression.new_kinds`, `regression.stat_shifts` |
@@ -64,7 +64,7 @@ Ask: "Which ones? (default: 1-<top 2 or 3>)". Picking none is fine; still write 
 ## Expected effect
 - #1: <what should change> - verify with <quick playtest / human goal "<goal>">
 ```
-This file moves `ITERATION` forward, so the next round only counts newer evidence.
+This file moves `ITERATION` forward, so the next round only counts newer evidence. List every file you used under `## Evidence`: a same-day file it doesn't name still counts as new.
 
 ## Rules
 - **Never tick a gate box**; never write `[x]` into `gates.md`. Name the box the evidence supports instead.
@@ -72,4 +72,4 @@ This file moves `ITERATION` forward, so the next round only counts newer evidenc
 - Keep it to one change list per iteration; leftovers wait for the next round.
 
 ## Next loop
-End with one line `Next loop: <loop> (/playbench:<skill>)`. Default: `Next loop: build (/playbench:build)`, with the first picked change as the next slice. When unsure, run a fresh `status` and use its `LOOP` and `NEXT`; a same-day `LOOP=iterate` that only counts files this record already lists is stale, so keep the default.
+End with one line `Next loop: <loop> (/playbench:<skill>)`. Default: `Next loop: build (/playbench:build)`, with the first picked change as the next slice. When unsure, run a fresh `status` and use its `LOOP` and `NEXT`.
