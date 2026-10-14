@@ -10,7 +10,7 @@ A Claude Code plugin for game developers: design, playtest, balance, ship.
 ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)
 ![Engines](https://img.shields.io/badge/works%20with-any%20HTML5%20export-blue)
 
-<img src="docs/assets/demo.gif" width="480" alt="A playbench bot playing the Dodge sample game">
+<img src="docs/assets/demo.gif" width="720" alt="A playbench bot playing the Dodge sample game while checks pass live">
 
 <sub>A playbench bot playing the real build of the sample game. No human hands.</sub>
 
@@ -30,30 +30,14 @@ playbench catches each of those early:
 
 ## How it works
 
-```mermaid
-flowchart TD
-    A[💬 Design<br/>one chat, one page] --> B[🛠️ Build a feature]
-    B --> C{🤖 Bot playtest}
-    C -- FAIL --> B
-    C -- PASS --> D[📊 Balance sweep]
-    D --> E[🧑 Human playtest<br/>is it fun?]
-    E --> B
-    E --> F{🚦 Release gates<br/>ticked by you}
-    F --> G[🚀 itch.io / Steam / web]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/flow-dark.svg">
+  <img src="docs/assets/flow-light.svg" width="100%" alt="Design, build, bot playtest (FAIL loops back to build), balance, human playtest, ship once you tick the gates">
+</picture>
 
 ## See it work
 
-<table>
-<tr>
-<td width="50%"><b>"What's next?"</b> It knows your stage, your open gates and your playtest debt.<br><img src="docs/assets/studio.png" alt="studio skill output"></td>
-<td width="50%"><b>"Playtest it."</b> PASS, then someone adds a bug and you get a screenshot of the crash.<br><img src="docs/assets/playtest.png" alt="playtest pass and crash"></td>
-</tr>
-<tr>
-<td><b>"Is bat speed balanced?"</b> One sweep, and the cliff is obvious.<br><img src="docs/assets/balance.png" alt="balance sweep chart"></td>
-<td><b>"Ship to itch."</b> Placeholder art is blocked, and the upload waits for your sign-off.<br><img src="docs/assets/ship.png" alt="ship gates"></td>
-</tr>
-</table>
+<img src="docs/assets/showcase.png" width="100%" alt="Four steps: ask what's next, bots playtest every feature, balance on the real build, ship only when you say so">
 
 <sub>Every screen above is real output from the bundled <code>examples/dodge-web</code> game.</sub>
 
