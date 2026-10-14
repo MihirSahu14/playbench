@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 failed = []
-for name in ("studio", "playtest", "balance", "ship"):
+for name in ("studio", "playtest", "balance", "ship", "hooks", "art", "telemetry"):
     script = ROOT / "scripts" / f"{name}.py"
     if not script.exists():
         print(f"SKIP {name}: not built")

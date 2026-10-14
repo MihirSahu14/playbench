@@ -1,6 +1,7 @@
 extends Node2D
 # dodge-godot: experimental mirror of examples/dodge-web (unverified: written without a Godot binary).
 # User args (after --): bug=softlock freezes after 8 s of play, bug=crash makes a SCRIPT ERROR after 5 s.
+# Knobs: playtest.py/balance.py overrides arrive as --player_speed=5 / --bat_speed=3 through probe_knobs().
 
 const W := 480.0
 const H := 320.0
@@ -16,6 +17,8 @@ const KINDS := [ # stands in for dodge-web's data/enemies.csv
 ]
 const REACTION_S := 0.8
 
+var kinds: Array = KINDS.duplicate(true) # a var copy, so probe_knobs can tune it
+var player_speed := PLAYER_SPEED
 var rng := RandomNumberGenerator.new()
 var bug := ""
 var started := false
@@ -34,6 +37,12 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("bug="):
 			bug = a.substr(4)
+
+
+# Called by probe.gd before add_child, so _ready already sees the tuned values.
+func probe_knobs(k: Dictionary) -> void:
+	player_speed = float(k.get("player_speed", player_speed))
+	kinds[0]["speed"] = float(k.get("bat_speed", kinds[0]["speed"]))
 
 
 func probe_seed(value: int) -> void:
@@ -67,9 +76,9 @@ func _update(dt: float) -> void:
 		dir += 1.0
 	if Input.is_action_pressed("ui_left"):
 		dir -= 1.0
-	px = clampf(px + dir * PLAYER_SPEED * 60.0 * dt, PW / 2.0, W - PW / 2.0)
-	for i in KINDS.size():
-		var k: Dictionary = KINDS[i]
+	px = clampf(px + dir * player_speed * 60.0 * dt, PW / 2.0, W - PW / 2.0)
+	for i in kinds.size():
+		var k: Dictionary = kinds[i]
 		timers[i] += dt * 1000.0
 		if timers[i] >= k["spawn_ms"]:
 			timers[i] -= k["spawn_ms"]

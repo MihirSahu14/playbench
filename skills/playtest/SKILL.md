@@ -25,7 +25,10 @@ The status block above gives `RUN`, `PLUGIN`, `BUILD`, `ENGINE`, `CODING`, `AI_P
 ```
 - Run it from the game folder, so reports land in `playtests/` and get committed with the game.
 - Exit 0 means PASS or WARN, 1 means FAIL, and 2 means a setup problem (the message says what to fix).
-- Extra flags: `--bot idle|random|policy`, `--override data/x.csv:id.col=V` or `--override name=V` (bundled knob), `--realtime`, `--coop`.
+- Extra flags: `--override data/x.csv:id.col=V` or `--override name=V` (bundled knob), `--realtime`, `--coop`.
+- Bots (`--bot`): `idle`, `random`, `policy` (the game's own `bot`), plus:
+  - `mash`: holds a fresh random set of every action (start keys too) each 100 ms. Input-spam robustness; run it before a milestone.
+  - `script:<path.json>`: a reproducible path such as "walk to the boss door", e.g. `[{"t": 0, "keys": ["ArrowRight"]}, {"t": 2.5, "keys": ["ArrowUp"]}]`. At each step it holds the keys of the last entry with `t <= now`; the last entry's keys stay held. Keep these files in `playtests/scripts/`: later loops replay them.
 
 ## 3. Report back
 - Quote the verdict line (the first line of the report) exactly as printed.
@@ -48,7 +51,7 @@ For each FAIL, read the screenshot in `playtests/shots/` and the code path behin
 - **console_error:** a WARN. Triage it, but don't block on it.
 
 ## 5. Tier upgrade (when the report says tier 0 or 1)
-Tier 0 sees only the screen. Tier 1 reads state (softlock, real dead-input checks). Tier 2 adds a goal-directed bot (difficulty stats, balance sweeps). Explain what is missing in one line, then:
+Tier 0 sees only the screen. **Construct 3 / GDevelop / Unity WebGL / GameMaker:** paste the matching snippet from `${CLAUDE_SKILL_DIR}/adapters.md`. Tier 1 reads state (softlock, real dead-input checks). Tier 2 adds a goal-directed bot (difficulty stats, balance sweeps). Explain what is missing in one line, then:
 - **`AI_POLICY=banned`:** T0 only. Never write an adapter or a bot. Explain the contract if asked.
 - **coding 1-2:** offer to write the adapter yourself. At coding 2 the human reviews it.
   - Web: `window.__game = { state: () => ({over, won, paused, score, ...gameplay fields}), actions: [...KeyboardEvent.key values], bot: s => [...keys to hold] }`
@@ -71,6 +74,11 @@ Never tick a gate box, and never write `[x]` into `gates.md`. Name the box the r
 ## Notes
 - **Threaded web builds** (SharedArrayBuffer, pthreads) can't run under the fake clock. Use `--realtime`, plus `--coop` if they need COOP/COEP headers.
 - **Godot 4 web exports** should use the no-threads variant.
-- **Godot native** (`project.godot` in the build) is **experimental**. It needs `GODOT` set to a Godot 4 editor, and it has no screenshots and no overrides.
+- **Godot native** (`project.godot` in the build) is **EXPERIMENTAL** (tested only against a fake `godot`). It needs `GODOT` set to a Godot 4 editor.
+  - Knobs: each `--override name=V` reaches the game as the user arg `--name=V`; define `probe_knobs(knobs: Dictionary)` on the main scene's root (called before `_ready`).
+  - `--windowed` opens a real window instead of `--headless` and saves a frame every second, so frozen/dead-input checks and FAIL screenshots work.
 - **Native Unity or Unreal** builds can only be bot-tested through a WebGL/HTML5 export.
 - Bots can't judge fun, clarity or feel. Say so every time; the human sheet covers it.
+
+## Next loop
+End your reply with one line `Next loop: <loop> (/playbench:<skill>)`. Default: `build` after a FAIL (fix it), `balance` when tier 2 and `BALANCE=on` past the first stage, `iterate` when findings need a decision, `log` when `DEBT_HUMAN` warns. When unsure, use `LOOP`/`NEXT` from a fresh `studio.py status`.

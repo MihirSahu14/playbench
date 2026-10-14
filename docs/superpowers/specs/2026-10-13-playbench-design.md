@@ -6,7 +6,7 @@
 ## Goal
 playbench is a Claude Code plugin that plays your real game build with bots. It works on any HTML5 export, and on native headless Godot in experimental form, through one engine-neutral probe contract. It sweeps balance knobs on that same build. It blocks itch and Steam releases until placeholder or AI art is disclosed and a human has ticked the release gate. Design stays at one discussion and one page. The flow adapts to jam, hobby, team or classroom use, and to how much the user codes.
 
-v1 is **web-first, Godot-second**. The SKILL asks for a quick playtest after every feature, and `status` shows any gap. No hook runs it automatically in v1.
+v1 is **web-first, Godot-second**. The SKILL asks for a quick playtest after every feature, and `status` shows any gap. No hook runs it automatically in v1; the roadmap round adds an opt-out Stop hook that prompts it (see [Roadmap round](#roadmap-round-v11-to-v3)).
 
 ## Ownership
 | Humans own | Claude and the scripts own |
@@ -46,15 +46,42 @@ Four inputs drive adaptation:
 | `examples/dodge-web` (verified fixture), `examples/dodge-godot` (experimental fixture), `scripts/selftest.py`, plugin and marketplace manifests | yes |
 
 ## Roadmap
-| Version | Adds |
-|---|---|
-| **v1** | Everything listed above |
-| v1.1 | Godot native marked **verified**, once the user approves downloading the portable Godot 4.x editor (82 MB) and the spike passes. Also: `balance costcurve` (least squares and 2σ outliers), `balance sim` (seeded Monte Carlo from `model-template.py`), Steam library assets, a `studio aiuse` git-derived AI-use summary, `mash` and scripted-input bots, and a PreToolUse guard that blocks Claude's Edit/Write from ticking `gates.md`. Also an auto quick-playtest Stop hook, which waits until interpreter discovery is proven. |
-| v1.2 | Godot balance sweeps through user args, screenshots from windowed Godot runs, tested Construct and GDevelop adapters, and Godot web export in the selftest when templates are cached |
-| v2 | Art pipeline (Aseprite CLI atlas export, placeholder sprite generation), itch theme CSS generator, survey generator, GitHub Pages and Netlify automation |
-| v3 | LLM agent that plays at decision points, persona commentary, payoff-matrix balance, telemetry ingestion, human feedback intake, postmortem, Steam Playtest app and Next Fest flow, running uploads, hosted runner |
+| Version | Adds | Status |
+|---|---|---|
+| **v1** | Everything listed above | done |
+| v1.1 | PreToolUse gate guard; auto quick-playtest Stop hook; `balance costcurve` and `balance sim`; Steam library assets; `studio aiuse`; `mash` and scripted-input bots; interpreter discovery hardening (venv fallback) | **this round** |
+| v1.2 | Godot balance sweeps via user args; windowed Godot screenshots; Construct and GDevelop adapters with a fixture-free test; Godot selftest steps that run only with a real binary or cached web templates | **this round** (Godot stays EXPERIMENTAL) |
+| v2 | `art` skill (bible, animation list, Pillow placeholders, atlas packing, Aseprite wrapper, naming lint); itch theme generator; survey generator; GitHub Pages and Netlify automation (dry-run by default) | **this round** |
+| v3 | Decision-point agent playtests; persona commentary; payoff-matrix balance; telemetry ingestion; `feedback` and `postmortem` skills; Steam Playtest and Next Fest flow; `--real` uploads | **this round** |
+| loops | `build`, `iterate` and `log` skills; loop orchestration in `status` | **this round** |
+| later | Godot native marked **verified** (needs the user's OK to download the 82 MB editor); hosted paid runner | **excluded** from this round |
 
 Not planned: mobile-native, Roblox/UEFN and consoles. They have closed runtimes and no headless path.
+
+## Roadmap round (v1.1 to v3)
+Plan: [roadmap plan](../plans/2026-10-13-playbench-roadmap.md). The plugin must help in **every loop**. Each loop has one skill, and `status` derives the current loop from files and git (no new counters).
+
+| Loop | Skill | Writes |
+|---|---|---|
+| design | `design` | `design/design.md` (replaced content moves under `## History`) |
+| build | **`build`** (new): next must item, one small slice, engine-aware, at the user's coding level, then a quick playtest | game code, `design/build-log.md` |
+| test | `playtest` (+ mash, scripted and agent bots, persona commentary, survey) | `playtests/` |
+| balance | `balance` (+ `costcurve`, `sim`, `matrix`, Godot sweeps) | `balance/` |
+| iterate | **`iterate`** (new): one ranked change list from everything since the last iteration; the user picks; never auto-applies | `design/iterations/<n>.md`, `design/design.md` |
+| log | **`log`** (new): rough human notes into a structured session; printable observation sheet ("watch, don't explain") | `playtests/<date>-<HHMM>-human.md`, `design/journal.md` |
+| ship | `ship` (+ library assets, itch theme, Pages/Netlify, Steam Playtest/Next Fest, `--real`) | `store/`, `steam/`, `build/` |
+
+Side skills: **`art`** (part of build), **`feedback`** (feeds iterate; writes `feedback/*.md`), **`postmortem`** (after ship; writes `design/postmortem.md`). Every skill ends with a `## Next loop` section naming the next loop.
+
+**Hooks** (`hooks/hooks.json` + `scripts/hooks.py`) run in every session of every user, so they are fast (<1 s), fail open (exit 0 on any error), survive `python` being the Windows Store stub, and act only where `studio.json` exists:
+- **PreToolUse** on Edit, Write, MultiEdit, Bash and PowerShell: denies any change that raises the number of ticked boxes in a `gates.md` (for shell commands: when the command names `gates.md` and contains a tick pattern). Humans still tick by hand.
+- **Stop:** when game files changed during the turn and quick debt is at or over the profile limit, it blocks the stop once, asking Claude to run a quick playtest. It never loops (`stop_hook_active`), never runs the playtest itself (too slow for a hook) and honours `"auto_playtest": false` in `studio.json`.
+
+**New status keys:** `LOOP`, `LOOPMAP`, `AUTO_PLAYTEST`, `ITERATION`, `SINCE_ITERATION`. `RUN` may be a quoted venv interpreter path when pip refuses (PEP 668) and the venv fallback in `CLAUDE_PLUGIN_DATA` is used.
+
+**New scripts:** `hooks.py`, `art.py` (Pillow, imported lazily), `telemetry.py`. godot, aseprite, butler, steamcmd and netlify are tested only against small fake stubs and SKIP cleanly when absent.
+
+**Excluded this round:** downloading Godot or any binary or export template; real uploads or credentials in any test; the hosted paid runner. AI art stays placeholder-only: generated sprites are `_placeholder` files recorded in `art/PLACEHOLDERS.json` (`source: "generated"`), and artgate keeps blocking undisclosed ones.
 
 ## Architecture
 ```
@@ -64,11 +91,14 @@ skills/design/SKILL.md, design-template.md
 skills/playtest/SKILL.md, sheet-template.md
 skills/balance/SKILL.md
 skills/ship/SKILL.md
+skills/build/ iterate/ log/ art/ feedback/ postmortem/   (roadmap round)
+hooks/hooks.json                                          (roadmap round)
 scripts/studio.py playtest.py probe.gd balance.py ship.py selftest.py
+scripts/hooks.py art.py telemetry.py                      (roadmap round)
 examples/dodge-web/  examples/dodge-godot/
 README.md
 ```
-- There is no `agents/`, `hooks/` or `bin/` directory.
+- There is no `agents/` or `bin/` directory. Persona commentary uses subagents dispatched by the playtest SKILL.
 - The scripts use the stdlib only, except that `playtest.py` imports `playwright` lazily inside the web transport.
 - `balance.py` and `ship.py` call `playtest.run()` directly; there is no subprocess layer.
 - The in-page probe JavaScript is a string constant inside `playtest.py`, not a separate file.
@@ -142,7 +172,7 @@ Before any game script runs, the harness injects `window.__playbench = {seed, ov
 - **Determinism check:** the idle replay runs twice. If the two runs differ, the dead-input check is reported as skipped (`nondeterministic`, WARN).
 - Every FAIL finding saves a screenshot to `shots/`.
 
-**Bots:** `idle`, `random` (changes keys every 300 ms), and `policy` (`__game.bot`). The mash and scripted-input bots are deferred.
+**Bots:** `idle`, `random` (changes keys every 300 ms), and `policy` (`__game.bot`). The roadmap round adds `mash` (a fresh random subset of all actions, start keys included, every 100 ms step) and `script:<file.json>` (a list of `{"t": seconds, "keys": [...]}`, each held until the next entry's `t`), which also drives agent playtests.
 
 ### `playtest.run()` (the API balance and ship call)
 ```python
@@ -206,6 +236,10 @@ The command exits 0 on PASS or WARN and 1 on FAIL. `playtest.py selftest` runs t
 | `playtests/*.json`, `*.md` | scripts (**commit them**; `shots/` is gitignored by init) | reports; `*-human.md` holds human sessions |
 | `balance/last.json` | script | the last sweep results per knob |
 | `steam/app_build.vdf`, `build/itch.zip` | script | ship outputs |
+| `art/bible.md` | human, drafted by Claude (roadmap round) | `## Palette` lines `- <role>: #rrggbb` (roles bg, text, link, button required), `## Fonts`, `## Pixel density`, `## Proportions`, `## Animations` table |
+| `design/build-log.md`, `design/journal.md`, `design/iterations/<n>.md`, `design/postmortem.md` | Claude appends, human edits (roadmap round) | loop history |
+| `feedback/<date>-<source>.md` | Claude writes, human edits (roadmap round) | ranked, deduped issues |
+| `telemetry/*.jsonl`, `telemetry/<date>-report.md` | game snippet, then script (roadmap round) | play events and their aggregate |
 
 Some state is **derived**, so no counters are stored:
 - **Stage:** the first `## stage` in `gates.md` that has an unticked box. If every box is ticked, the stage is `shipped`.
@@ -274,7 +308,7 @@ Every report states what bots cannot judge.
 
 `ship itch`, `ship steam` and `ship web` print a **real** upload command only when `artgate` passes and `gate` passes. The itch command is butler without `--dry-run`. The Steam command is `steamcmd +login <user> +run_app_build "<abs>/steam/app_build.vdf" +quit`, printed after rewriting the vdf with `Preview "0"` when `--real` is given. A command is never executed; the user runs it.
 
-## Balance (v1: sweep)
+## Balance (v1: sweep; the roadmap round adds `costcurve`, `sim`, `matrix` and Godot sweeps)
 `balance.py sweep <game_dir> --knob <name> [--values a,b,c] [--seeds] [--seconds]`
 1. Reads the `## Knobs` table in `design/design.md`, which has the columns `name | file | key | min | max`. A `file` of `-` means the value is bundled and reached only through `__playbench.overrides`.
 2. If no values are given, it uses 5 evenly spaced values from min to max.

@@ -51,17 +51,34 @@ Say it in 3-5 plain lines, adapted to `CONTEXT` and `CODING`:
 - **Learn:** mention `AI_POLICY` once.
 - CODING 1: no jargon, one-line verdicts. CODING 3: you may name the scripts and files.
 
-Then offer `NEXT` as a one-line question ("Want me to do that now?").
+Then show `LOOPMAP` as is and offer `NEXT` as a one-line question ("Want me to do that now?").
+
+## The loop
+- Every project cycles design > build > test > balance > iterate > log > ship. `LOOP` is where this one is now, worked out from its files and git (nothing to keep up to date by hand); `LOOPMAP` shows it in brackets.
+- build makes one small slice, test runs a bot playtest, log turns a human session into notes, iterate ranks changes from everything since `ITERATION` (counts in `SINCE_ITERATION`).
+- Debt, a FAIL, a missing report or new human evidence pulls the loop back; skipping a loop is fine when the user says why.
 
 ## Routing
 - Idea, theme, scope, the one-page design: `/playbench:design`.
+- The next must-list feature as one small slice: `/playbench:build`. Placeholder art, art bible, sprite sheets: `/playbench:art`.
 - After every feature, before ticking a gate, or when something feels broken: `/playbench:playtest` (quick after each feature; milestone or final when `REQUIRED` lists them; sizes from `SIZES`).
 - Tuning numbers or difficulty: `/playbench:balance`, only if `BALANCE=on` or the user asks for it (jams have it off).
-- Release, itch/Steam/web, AI-art disclosure, gate audit: `/playbench:ship`.
+- A human played it (notes, observation sheet): `/playbench:log`. Comments from Discord, itch, Steam or a survey: `/playbench:feedback`.
+- Deciding what to change next from playtests and feedback: `/playbench:iterate`.
+- Release, itch/Steam/web, AI-art disclosure, gate audit: `/playbench:ship`. After shipping: `/playbench:postmortem`.
+
+## Plugin hooks
+- A guard stops Claude from ticking boxes in `gates.md`; humans tick them by hand.
+- When quick playtest debt is over the limit, a Stop hook reminds Claude to run a quick playtest. `AUTO_PLAYTEST` shows it; `"auto_playtest": false` in `studio.json` turns it off.
 
 ## Hard rules
 - **Never tick a gate box.** Never write `[x]` into `gates.md`, not even when asked. Tell the human which box they can tick, and say to commit `gates.md` so `ship gate` can show who ticked it.
 - If `ALLOWED` is printed (`AI_POLICY=banned`), do only those actions: explain, review, status, T0 playtest, artgate. Refuse to write game code, adapters, bots or models, and list what is allowed.
+- `CONTEXT=learn`: for course reports, offer `<RUN> "<PLUGIN>/scripts/studio.py" aiuse . --md` (an AI-use summary from git; it only sees commits with a Co-Authored-By: Claude trailer).
 - If `PLAYWRIGHT=no`, show the `INSTALL` line and **ask before running it**. studio, ship artgate/gate and Godot still work without it.
+- If `INSTALL` contains `-m venv`, this Python refuses pip installs (it is "externally managed"), so playbench makes its own virtual environment in `VENV` and installs Playwright there. Say that in one line and ask first. Afterwards `RUN` is that venv's quoted path, and each command with it may ask for permission.
 - `GODOT=none` with a Godot project: say playtests need `GODOT` set to a Godot 4 editor executable, and that Godot native is experimental. Do not download Godot without explicit permission.
 - Never edit `studio.json` for team members silently; it is the team's shared config. Propose the change and let them commit it.
+
+## Next loop
+End with one line `Next loop: <loop> (/playbench:<skill>)`. Default: the `LOOP` value, with skill `playtest` for `test` and the loop name otherwise. When unsure, rerun `status` and use its `LOOP` and `NEXT`.

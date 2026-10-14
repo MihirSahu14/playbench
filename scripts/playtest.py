@@ -1,14 +1,14 @@
 """playbench playtest harness: bots play the real build (web via Playwright, Godot native experimental).
 
-    playtest.py run <build> [--mode M] [--bot B] [--seeds N] [--seconds S] [--override F:K=V | NAME=V]...
-                            [--realtime] [--coop] [--out DIR]
+    playtest.py run <build> [--mode M] [--bot idle|random|policy|mash|script:F.json] [--seeds N] [--seconds S]
+                            [--override F:K=V | NAME=V]... [--realtime] [--coop] [--windowed] [--out DIR]
     playtest.py selftest [game_dir]
 
 Library: run(build, ...) -> report dict (spec: Report JSON). Stdlib only; playwright is imported lazily.
 A build is a dir, a .zip, or either with a ?query suffix that is passed to the game (?bug=crash).
 """
 import argparse, csv, hashlib, io, json, os, random, shutil, statistics, subprocess, sys, tempfile, threading, time, zipfile
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stderr
 from datetime import datetime, timedelta
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -26,6 +26,8 @@ KEYS = ["version", "at", "mode", "engine", "build", "tier", "verdict", "summary"
         "overrides", "regression", "cannot_judge"]
 CANNOT_JUDGE = "Bots cannot judge fun, clarity or feel. A human playtest is still required before any gate."
 REPLAY_S, EPOCH = 3, datetime(2026, 1, 1)
+BOTS = ("idle", "random", "policy", "mash")
+SCRIPT_EX = '[{"t": 0, "keys": ["ArrowRight"]}, {"t": 1.5, "keys": []}]'
 
 # Injected before any game script: seed, overrides, seeded Math.random (mulberry32) and the state reader.
 PROBE_JS = """(()=>{const P=window.__playbench=__CFG__;let a=P.seed>>>0;
@@ -54,7 +56,30 @@ def shash(s):
     return hashlib.sha1(json.dumps(s, sort_keys=True).encode()).hexdigest()[:12]
 
 
+def check_bot(bot):
+    """Validate a bot name; returns the steps [{t, keys}] of 'script:<path.json>', else []. die(2) when bad."""
+    if bot in BOTS or bot.startswith("hold:"):
+        return []
+    if not bot.startswith("script:"):
+        die(f"unknown bot {bot!r}: use idle, random, policy, mash or script:<path.json>")
+    f = Path(bot[7:])
+    if not f.is_file():
+        die(f"bot script not found: {f}")
+    try:
+        steps = json.loads(f.read_text("utf-8-sig"))
+    except ValueError:
+        steps = None
+    num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0
+    if not (isinstance(steps, list) and steps and all(
+            isinstance(e, dict) and num(e.get("t")) and isinstance(e.get("keys"), list)
+            and all(isinstance(k, str) for k in e["keys"]) for e in steps)
+            and [e["t"] for e in steps] == sorted(e["t"] for e in steps)):
+        die(f'bad bot script {f}: need a JSON list of {{"t": seconds, "keys": [...]}} sorted by t, e.g. {SCRIPT_EX}')
+    return steps
+
+
 def new_rec(seed, bot, actions):
+    bot = "script:" + Path(bot[7:]).name if bot.startswith("script:") else bot
     return dict(seed=seed, bot=bot, seconds=0.0, over=False, won=False, time_to_over=None, timeline=[], shots=[],
                 errors=[], console=[], boot=None, tier=None, actions=actions, final=None, shot=None, png=None)
 
@@ -163,7 +188,7 @@ def web_session(root, query, overrides, realtime, coop):
                 die(f'chromium failed to launch ({str(e).splitlines()[0]}): run "{x}" -m playwright install chromium')
 
             def play(seed, bot, secs):
-                rec, now, pg = new_rec(seed, bot, WEB_ACTIONS), [0.0], br.new_page()
+                rec, now, pg, steps = new_rec(seed, bot, WEB_ACTIONS), [0.0], br.new_page(), check_bot(bot)
                 pg.on("pageerror", lambda e: err(rec, now[0], e))
                 pg.on("console", lambda m: m.type == "error" and rec["console"].append(m.text))
                 if not realtime:  # fixed epoch, paused: time moves only inside run_for, so runs replay exactly
@@ -210,15 +235,24 @@ def web_session(root, query, overrides, realtime, coop):
                     adv(100)
                     t = now[0] = round(i / 10, 1)
                     s, k = pg.evaluate(STEP_JS, bot == "policy" and hasbot)
-                    want = (set(map(str, k or [])) if bot == "policy" else {bot[5:]} if bot.startswith("hold:")
-                            else (set(rng.choice([[]] + [[a] for a in moves])) if i % 3 == 1 else held)
-                            if bot == "random" else set())  # random re-picks every 300 ms: nothing or one move
+                    if bot == "policy":
+                        want = set(map(str, k or []))
+                    elif bot.startswith("hold:"):
+                        want = {bot[5:]}
+                    elif bot == "random":  # re-picks every 300 ms: nothing or one move
+                        want = set(rng.choice([[]] + [[a] for a in moves])) if i % 3 == 1 else held
+                    elif bot == "mash":  # a fresh random subset of every action each step, start keys included
+                        want = {a for a in rec["actions"] if rng.random() < 0.5}
+                    else:  # script: keys of the last entry with t <= now (the last one stays held); idle: none
+                        want = set(next((e["keys"] for e in reversed(steps) if e["t"] <= t), []))
                     try:
                         for key in held - want:
                             pg.keyboard.up("Space" if key == " " else key)
                         for key in want - held:
                             pg.keyboard.down("Space" if key == " " else key)
                     except Exception as e:
+                        if steps:  # the human's script, not the game, named the key: a setup error (exit 2)
+                            die(f"bad key in bot script {bot[7:]}: {str(e).splitlines()[0]} (web keys: {WEB_ACTIONS})")
                         err(rec, t, f"bot sent a key the browser does not know: {e}")
                         want = set()
                     held, act_since = want, act_since or bool(want)
@@ -242,33 +276,52 @@ def web_session(root, query, overrides, realtime, coop):
 
 
 # ---------- godot transport (experimental) ----------
+def godot_exe():
+    """GODOT (a path or a name on PATH) or `godot`, only if it really resolves to an executable."""
+    return shutil.which(os.environ.get("GODOT") or "godot")
+
+
 @contextmanager
-def godot_session(root, query, overrides):
-    if overrides:
-        die("sweeps on Godot are not supported in v1")
-    exe = os.environ.get("GODOT") or shutil.which("godot")
+def godot_session(root, query, overrides, windowed=False):
+    exe = godot_exe()
     if not exe:
-        die("Godot not found: set GODOT to your Godot 4 editor executable (godot native is experimental)")
+        die(f"Godot not found{' at GODOT=' + os.environ['GODOT'] if os.environ.get('GODOT') else ''}: "
+            "set GODOT to your Godot 4 editor executable (godot native is experimental)")
+    # every override (file ones too, by knob name) is a user arg probe.gd hands to probe_knobs()
+    knobs = [f"--{o['name']}={v if isinstance(v := o['value'], str) else json.dumps(v)}" for o in overrides]
 
     def play(seed, bot, secs):
-        rec, frames, hasbot = new_rec(seed, bot, GODOT_ACTIONS), int(secs * 60), False
-        hold = bot[5:] if bot.startswith("hold:") else ""
-        cmd = [exe, "--headless", "--path", str(root), "--script", str(PROBE_GD), "--fixed-fps", "60",
-               "--quit-after", str(frames + 120), "--", f"seed={seed}", f"bot={'hold' if hold else bot}",
-               "step=6", f"frames={frames}", f"hold={hold}", *filter(None, query.split("&"))]
-        try:
-            p = subprocess.run(cmd, capture_output=True, text=True, timeout=secs * 3 + 60)
-            out, stderr, code = p.stdout, p.stderr, p.returncode
-        except subprocess.TimeoutExpired:
-            out, stderr, code = "", "ERROR: godot timed out", -1
-        for line in out.splitlines():
-            if line.startswith("PROBE_INFO "):
-                info = json.loads(line[11:])
-                rec["actions"], hasbot = info.get("actions") or GODOT_ACTIONS, info.get("bot")
-            elif line.startswith("PROBE "):
-                d = json.loads(line[6:])
-                if record_step(rec, round(d["t"], 2), d.get("state") or None, d.get("keys"), hasbot):
-                    break
+        rec, frames, hasbot, act = new_rec(seed, bot, GODOT_ACTIONS), int(secs * 60), False, False
+        kind, _, arg = bot.partition(":")  # hold:<action>, script:<path.json>
+        check_bot(bot)
+        with tempfile.TemporaryDirectory() as shots:
+            cmd = [exe, *([] if windowed else ["--headless"]), "--path", str(root), "--script", str(PROBE_GD),
+                   "--fixed-fps", "60", "--quit-after", str(frames + 120), "--", f"seed={seed}", f"bot={kind}",
+                   "step=6", f"frames={frames}", f"hold={arg if kind == 'hold' else ''}",
+                   *([f"script={Path(arg).resolve()}"] if kind == "script" else []),
+                   *([f"shots={shots}"] if windowed else []), *knobs, *filter(None, query.split("&"))]
+            try:
+                p = subprocess.run(cmd, capture_output=True, text=True, timeout=secs * 3 + 60)
+                out, stderr, code = p.stdout, p.stderr, p.returncode
+            except subprocess.TimeoutExpired:
+                out, stderr, code = "", "ERROR: godot timed out", -1
+            for line in out.splitlines():
+                if line.startswith("PROBE_INFO "):
+                    info = json.loads(line[11:])
+                    rec["actions"], hasbot = info.get("actions") or GODOT_ACTIONS, info.get("bot")
+                elif line.startswith("PROBE_SHOT "):  # --windowed: hashed like web shots (T0 checks, FAIL shots)
+                    try:
+                        rec["png"] = Path(line[11:].strip()).read_bytes()
+                    except OSError:
+                        continue
+                    rec["shot"] = hashlib.sha1(rec["png"]).hexdigest()[:12]
+                    rec["shots"].append((rec["seconds"], rec["shot"], act))
+                    act = False
+                elif line.startswith("PROBE "):
+                    d = json.loads(line[6:])
+                    act = act or bool(d.get("keys"))
+                    if record_step(rec, round(d["t"], 2), d.get("state") or None, d.get("keys"), hasbot):
+                        break
         for line in (stderr + "\n" + out).splitlines():
             if "SCRIPT ERROR" in line or "ERROR:" in line:
                 err(rec, rec["seconds"], line)
@@ -418,10 +471,13 @@ def write_reports(rep, out_dir):
 
 # ---------- public API ----------
 def run(build, mode="quick", bot=None, seeds=None, seconds=None, overrides=None,
-        realtime=False, coop=False, out_dir=None):
-    """Play `build` with bots; return the report dict. Raises SystemExit(2) on usage/environment errors."""
+        realtime=False, coop=False, out_dir=None, windowed=False):
+    """Play `build` with bots; return the report dict. Raises SystemExit(2) on usage/environment errors.
+    bot: idle|random|policy|mash|script:<path.json>. windowed (Godot only): screenshots instead of --headless."""
     if mode not in MODES:
         die(f"unknown mode {mode!r}: use one of {', '.join(MODES)}")
+    if bot:
+        check_bot(bot)
     seeds, seconds, overrides = seeds or MODES[mode][0], seconds or MODES[mode][1], list(overrides or [])
     path, _, query = str(build).partition("?")
     with tempfile.TemporaryDirectory() as tmp:
@@ -430,7 +486,7 @@ def run(build, mode="quick", bot=None, seeds=None, seconds=None, overrides=None,
             zipfile.ZipFile(root).extractall(tmp)
             root = Path(tmp)
         if (root / "project.godot").is_file():
-            engine, sess = "godot", godot_session(root, query, overrides)
+            engine, sess = "godot", godot_session(root, query, overrides, windowed)
         elif (root / "index.html").is_file():
             engine, sess = "web", web_session(root, query, overrides, realtime, coop)
         else:
@@ -481,13 +537,119 @@ def parse_override(spec):
     return {"name": key, "file": file or None, "key": key, "value": val}
 
 
+def stub(dirpath, name, body):
+    """Fake executable `name` in dirpath that runs python source `body` with this interpreter (roadmap C7)."""
+    py = dirpath / f"{name}_stub.py"
+    py.write_text(body, "utf-8")
+    if os.name == "nt":
+        exe = dirpath / f"{name}.cmd"
+        exe.write_text(f'@"{sys.executable}" "{py}" %*\n', "utf-8")
+    else:
+        exe = dirpath / name
+        exe.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{py}" "$@"\n', "utf-8")
+        exe.chmod(0o755)
+    return exe
+
+
+# Fake godot: logs its argv, speaks the probe protocol (x moves by the player_speed knob), and writes a tiny
+# PNG per step plus PROBE_SHOT when shots= is given.
+GODOT_STUB = r'''import json, struct, sys, zlib
+from pathlib import Path
+a = sys.argv[1:]
+with open(Path(__file__).with_name("argv.jsonl"), "a") as f:
+    f.write(json.dumps(a) + "\n")
+u = dict(x.lstrip("-").split("=", 1) for x in a[a.index("--") + 1:] if "=" in x)
+def png(v):
+    ch = lambda k, d: struct.pack(">I", len(d)) + k + d + struct.pack(">I", zlib.crc32(k + d))
+    return (b"\x89PNG\r\n\x1a\n" + ch(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
+            + ch(b"IDAT", zlib.compress(bytes([0, v % 256, 0, 0]))) + ch(b"IEND", b""))
+print("PROBE_INFO " + json.dumps({"bot": True, "actions": ["ui_left", "ui_right", "ui_accept"]}))
+for i in range(1, int(u["frames"]) // 30 + 1):
+    t = i / 2
+    print("PROBE " + json.dumps({"t": t, "state": {"over": False, "x": t * float(u.get("player_speed", 1))}, "keys": []}))
+    if u.get("shots"):
+        p = Path(u["shots"]) / f"{i * 30}.png"
+        p.write_bytes(png(i))
+        print(f"PROBE_SHOT {p}")
+print("PROBE_END")
+'''
+
+
+def selftest_godot_stub():
+    """Godot transport against a fake godot: always runs, never touches a real binary."""
+    with tempfile.TemporaryDirectory() as tmp:
+        d, old = Path(tmp), os.environ.get("GODOT")
+        (d / "project.godot").write_text("config_version=5\n", "utf-8")
+        os.environ["GODOT"] = str(stub(d, "godot", GODOT_STUB))
+        argv = lambda: json.loads((d / "argv.jsonl").read_text("utf-8").splitlines()[-1])
+        try:
+            r = run(str(d), mode="sweep", seeds=1, seconds=2, overrides=[parse_override("player_speed=5")])
+            a = argv()
+            assert "--headless" in a and "--player_speed=5" in a and r["tier"] == 2 and r["verdict"] == "PASS", (a, r)
+            run(str(d), mode="sweep", seeds=1, seconds=2, windowed=True)
+            a = argv()
+            assert "--headless" not in a and any(x.startswith("shots=") for x in a), a
+            with godot_session(d, "", [], windowed=True) as play:
+                rec = play(1, "random", 2)
+            assert len(rec["shots"]) == 4 and rec["png"][:4] == b"\x89PNG" and rec["shot"], rec["shots"]
+            run(str(d), mode="sweep", bot="mash", seeds=1, seconds=1)
+            assert "bot=mash" in argv(), argv()
+            sc = d / "walk.json"
+            sc.write_text(json.dumps([{"t": 0, "keys": ["ui_right"]}]), "utf-8")
+            r = run(str(d), mode="sweep", bot=f"script:{sc}", seeds=1, seconds=1)
+            a = argv()
+            assert "bot=script" in a and f"script={sc.resolve()}" in a and r["runs"][0]["bot"] == "script:walk.json", a
+            os.environ["GODOT"] = str(d / "missing" / "godot.exe")  # a stale GODOT: exit 2, not a traceback
+            try:
+                with redirect_stderr(io.StringIO()):
+                    run(str(d), mode="boot")
+                raise AssertionError("missing GODOT accepted")
+            except SystemExit as e:
+                assert e.code == 2
+        finally:
+            if old is None:
+                os.environ.pop("GODOT", None)
+            else:
+                os.environ["GODOT"] = old
+    print("ok (m) godot stub: knobs as --name=value, --windowed shots, mash and script bots reach probe.gd")
+
+
+# Fake Construct/GDevelop runtimes around the real adapters.md snippets: arrows move the score.
+ADAPTER_PAGE = """<!doctype html><canvas id=c width=200 height=100></canvas><script>
+const V = {GameOver: false, Won: false, Score: 0, Paused: false}, keys = {};
+addEventListener('keydown', e => { keys[e.key] = true; }); addEventListener('keyup', e => { keys[e.key] = false; });
+(function f() { V.Score += (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0); const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, 200, 100); g.fillStyle = '#fff'; g.fillRect(100 + V.Score % 90, 45, 9, 9);
+  requestAnimationFrame(f); })();
+globalThis.runOnStartup = cb => cb({globalVars: V});
+const runtimeScene = {getGame: () => ({getVariables: () => ({get: n => ({getAsBoolean: () => !!V[n], getAsNumber: () => +V[n]})})})};
+</script><script>
+__SNIPPET__
+</script>"""
+
+
+def selftest_adapters(have_pw):
+    """Run the Construct and GDevelop snippets from adapters.md in a fake engine page (no fixture needed)."""
+    if not have_pw:
+        print(f"SKIP adapters: playwright not installed for {sys.executable}")
+        return
+    md = (HERE.parent / "skills" / "playtest" / "adapters.md").read_text("utf-8")
+    for tag in ("construct", "gdevelop"):
+        with tempfile.TemporaryDirectory() as tmp:
+            snippet = md.split(f"```js {tag}\n", 1)[1].split("```", 1)[0]
+            (Path(tmp) / "index.html").write_text(ADAPTER_PAGE.replace("__SNIPPET__", snippet), "utf-8")
+            r = run(tmp, mode="quick", seeds=1, seconds=4, bot="random")
+            assert r["tier"] >= 1 and r["verdict"] != "FAIL", (tag, r["summary"], r["findings"])
+            print(f"ok (n) {tag} adapter: {r['summary']}")
+
+
 def selftest(game=None):
     game = Path(game or HERE.parent / "examples" / "dodge-web")
     try:
         import playwright  # noqa: F401
-        why = None if (game / "index.html").is_file() else f"{game} missing"
+        have_pw, why = True, None if (game / "index.html").is_file() else f"{game} missing"
     except ImportError:
-        why = f"playwright not installed for {sys.executable}"
+        have_pw, why = False, f"playwright not installed for {sys.executable}"
     if why:
         print(f"SKIP web: {why}")
     else:
@@ -526,8 +688,25 @@ def selftest(game=None):
                         zf.write(f, f.relative_to(g).as_posix())
             r = run(str(z), mode="boot")
             ok(f"(h) zip boot [{time.time() - t0:.0f}s]", r["verdict"] == "PASS", r)
+            r = run(str(g), bot="mash", seeds=1, seconds=5)
+            ok("(k) mash", r["verdict"] != "FAIL" and r["runs"][0]["bot"] == "mash", r)
+            for side in ("Left", "Right"):
+                (Path(tmp) / f"{side}.json").write_text(json.dumps([{"t": 0, "keys": [f"Arrow{side}"]}]), "utf-8")
+            a, r = (run(str(g), mode="sweep", bot=f"script:{Path(tmp) / f'{s}.json'}", seeds=1, seconds=3)
+                    for s in ("Left", "Right"))
+            ok(f"(l) script [{time.time() - t0:.0f}s]", a["runs"][0]["final"] != r["runs"][0]["final"]
+               and r["runs"][0]["bot"] == "script:Right.json", r)
+            (Path(tmp) / "godot-keys.json").write_text('[{"t": 0, "keys": ["ui_right"]}]', "utf-8")
+            try:  # a typo in the human's script is exit 2, never a crash FAIL blamed on the game
+                with redirect_stderr(io.StringIO()):
+                    run(str(g), mode="sweep", bot=f"script:{Path(tmp) / 'godot-keys.json'}", seeds=1, seconds=1)
+                raise AssertionError("unknown script key accepted")
+            except SystemExit as e:
+                assert e.code == 2
+    selftest_adapters(have_pw)
+    selftest_godot_stub()
     gd = HERE.parent / "examples" / "dodge-godot"
-    if not (os.environ.get("GODOT") or shutil.which("godot")) or not (gd / "project.godot").is_file():
+    if not godot_exe() or not (gd / "project.godot").is_file():
         print("SKIP godot: not installed (experimental)")
     else:
         r = run(str(gd), bot="random", seeds=1, seconds=10)
@@ -535,6 +714,37 @@ def selftest(game=None):
         r2 = run(f"{gd}?bug=softlock", bot="random", seeds=1, seconds=15)
         assert any(f["kind"] == "softlock" for f in r2["findings"]), r2["summary"]
         print(f"ok (j) godot: {r['summary']} / {r2['summary']}")
+    bases = [Path(p) / "Godot" for p in [os.environ.get("APPDATA")] if p] + [
+        Path.home() / ".local/share/godot", Path.home() / "Library/Application Support/Godot"]
+    if not (godot_exe() and have_pw and (gd / "project.godot").is_file()
+            and any(b.glob("export_templates/*/web_nothreads_release.zip") for b in bases)):
+        print("SKIP godot web export: no godot binary or cached web templates")
+    else:
+        with tempfile.TemporaryDirectory() as tmp:  # copy first: the export writes .godot/ into the project
+            proj, web = Path(tmp) / "proj", Path(tmp) / "web"
+            shutil.copytree(gd, proj, ignore=shutil.ignore_patterns(".godot", "build"))
+            web.mkdir()
+            subprocess.run([godot_exe(), "--headless", "--path", str(proj), "--export-release", "Web",
+                            str(web / "index.html")], capture_output=True, timeout=600)
+            r = run(str(web), mode="boot")
+            assert r["verdict"] == "PASS", r["summary"]
+            print(f"ok (o) godot web export: {r['summary']}")
+    with redirect_stderr(io.StringIO()):  # die() also prints; keep the selftest output clean
+        for bad in ('{"t": 0}', '[{"t": 2, "keys": []}, {"t": 1, "keys": []}]', '[{"t": 0, "keys": "Enter"}]', "nope"):
+            f = Path(tempfile.gettempdir()) / "playbench-bad-script.json"
+            f.write_text(bad, "utf-8")
+            try:
+                check_bot(f"script:{f}")
+                raise AssertionError(f"bad script accepted: {bad}")
+            except SystemExit as e:
+                assert e.code == 2
+            finally:
+                f.unlink()
+        try:
+            run(".", bot="dance")
+            raise AssertionError("bad bot accepted")
+        except SystemExit as e:
+            assert e.code == 2
     assert stuck([(0, "a", 1, 0), (3, "a", 0, 0), (5.1, "a", 0, 0)]) == 0
     fake = [dict(bot="policy", over=True, won=False, time_to_over=t, seconds=t) for t in (3, 21)]
     assert stats_for(fake, 2)["tto_p10"] >= 3 and stats_for(fake, 2)["tto_p90"] <= 21
@@ -549,18 +759,19 @@ def main(argv=None):
     r = sub.add_parser("run", help="playtest a build: a dir or .zip with index.html, or a Godot project")
     r.add_argument("build")
     r.add_argument("--mode", choices=list(MODES), default="quick")
-    r.add_argument("--bot", choices=["idle", "random", "policy"])
+    r.add_argument("--bot", help="idle, random, policy, mash or script:<path.json> (default: by mode)")
     r.add_argument("--seeds", type=int)
     r.add_argument("--seconds", type=float)
     r.add_argument("--override", action="append", default=[], metavar="F:K=V|NAME=V")
     r.add_argument("--realtime", action="store_true", help="real time instead of page.clock (threaded wasm builds)")
     r.add_argument("--coop", action="store_true", help="send COOP/COEP headers (SharedArrayBuffer builds)")
+    r.add_argument("--windowed", action="store_true", help="Godot only: run with a window so screenshots are taken")
     r.add_argument("--out", help="write <stamp>-<mode>.json/.md and shots/ here (use playtests)")
     sub.add_parser("selftest").add_argument("game", nargs="?")
     a = ap.parse_args(argv)
     if a.cmd == "selftest":
         return selftest(a.game)
-    rep = run(a.build, a.mode, a.bot, a.seeds, a.seconds, [parse_override(o) for o in a.override], a.realtime, a.coop, a.out)
+    rep = run(a.build, a.mode, a.bot, a.seeds, a.seconds, [parse_override(o) for o in a.override], a.realtime, a.coop, a.out, a.windowed)
     print(to_md(rep, Path(a.out).resolve().parent if a.out else None), end="")
     return 1 if rep["verdict"] == "FAIL" else 0
 

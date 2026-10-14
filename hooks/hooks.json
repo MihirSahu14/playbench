@@ -1,0 +1,28 @@
+{
+  "description": "playbench: block Claude from ticking gates.md boxes; remind it to run a quick bot playtest when game changes pile up. Acts only in folders with studio.json.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" gates || py -3 \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" gates || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" stop || py -3 \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks.py\" stop || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

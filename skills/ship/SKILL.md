@@ -1,17 +1,18 @@
 ---
 name: ship
-description: Use when the user wants to release, upload, publish, or submit a game to itch.io, Steam or the web, check AI-art disclosure, prepare store assets, or audit release gates.
+description: Use when the user wants to release, upload, publish, or submit a game to itch.io, Steam, GitHub Pages or Netlify, check AI-art disclosure, prepare store or library assets, theme an itch page, plan a Steam demo, Playtest or Next Fest, or audit release gates.
 allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, Glob, Grep
 ---
 !`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"`
 
-# Ship: release checks, printed upload commands
+# Ship: release checks, printed (or gated) upload commands
 
 The status lines above give `RUN`, `PLUGIN`, `CONTEXT`, `CODING`, `AI_POLICY`, `PLATFORMS`, `STAGE`, `UNTICKED:` and `ALLOWED`. Use them; don't ask for what they already say. Every command is `<RUN> "<PLUGIN>/scripts/ship.py" <cmd> . [flags]`. Exit codes: 0 pass, 1 blocked, 2 setup problem (the message says what to fix).
 
-## Two hard rules
+## Hard rules
 - **Never tick a gate box.** Never write `[x]` into `gates.md`, even if asked. Humans tick and commit their own boxes; `ship gate` shows who did.
-- **Never run butler or steamcmd** (or `netlify deploy --prod`). ship.py only prints them. Show the printed command and tell the user to run it in their own terminal.
+- **Never run butler, steamcmd or netlify yourself**, and never run any `--real` command on your own. Only when the user explicitly asks in chat for this specific release may you run `--real`, and even then prefer handing them the command to run in their own terminal (steamcmd may prompt for a password or Steam Guard code).
+- ship.py never runs `git push`. GitHub Pages steps are always printed for the user to run.
 
 ## 0. Preconditions
 - `RUN=NONE` or the echo fallback: tell the user to install Python 3.11+ and stop.
@@ -22,7 +23,7 @@ The status lines above give `RUN`, `PLUGIN`, `CONTEXT`, `CODING`, `AI_POLICY`, `
 Run these in order and explain each result before the next:
 1. `artgate`: undisclosed placeholder/AI art.
 2. `gate`: who ticked the current stage's boxes.
-3. One command per entry in `PLATFORMS`: `itch`, `steam` and/or `web`.
+3. One command per entry in `PLATFORMS`: `itch`, `steam` and/or `web`. Optional extras: `theme` (itch page), `demo` (Steam Playtest / Next Fest).
 
 By `ENGINE`: itch and web need an HTML5 export as `build_dir` (Godot: the Web export preset; Unity/Unreal: a WebGL export). Native builds go to Steam only.
 
@@ -58,19 +59,28 @@ Say plainly: detection is heuristic. Stripped metadata gets through, so it is a 
 
 If the boot check is skipped (no playwright), the real command stays withheld. Show the install hint from the output.
 
-**itch page theme** (advice only; nothing is automated): on the game page, **Edit theme** sets background, text and link colors, the banner image and fonts. Custom CSS works only if itch has enabled it for the account. In the embed settings, set the viewport to the game's canvas size, enable the fullscreen button and disable scrollbars. Add 3-5 screenshots and a GIF, and put the controls in the first lines of the description.
+**itch page theme:** `ship.py theme . [--css]` reads the palette and fonts from `art/bible.md` (written by `/playbench:art`; exit 2 says so if it's missing, or names a missing `bg`/`text`/`link`/`button` color). It writes `store/itch-theme.md` (the **Edit theme** values to enter, with WCAG contrast; `WARN` under 4.5:1 means hard-to-read text, suggest a lighter or darker color) and `store/itch-theme.html`, an offline preview to open in a browser. `--css` also writes `store/itch-custom.css`: optional, and only usable once itch support enables custom CSS for the account. Also: embed viewport = canvas size, fullscreen button on, scrollbars off; 3-5 screenshots and a GIF; controls in the first lines of the description.
 
 ## 5. Steam (team, or when asked)
 `ship.py steam .` needs `"steam": {"appid": ..., "depotid": ...}` in `studio.json` (exit 2 names the missing keys; ask the human for the numbers from Steamworks). It writes `steam/app_build.vdf` with `Preview "1"` and checks store PNG sizes by their header (sizes come from the `STORE` dict in ship.py, as of 2026-10-13):
 - `store/header_capsule.png` 920x430, `small_capsule.png` 462x174, `main_capsule.png` 1232x706, `vertical_capsule.png` 748x896
 - `store/screenshots/*.png`: at least 5, each at least 1920x1080, 16:9
+- library: `library_capsule.png` 600x900, `library_header.png` 920x430, `library_hero.png` 3840x1240, and `library_logo.png` 1280 wide or 720 tall (neither larger) with transparency (RGBA PNG)
 
-Flow: run the printed **preview** steamcmd command first (it uploads nothing). When it's clean and everything passes, `ship.py steam . --real` rewrites the vdf with `Preview "0"` and prints the real command; the human runs it, then sets the build live on a branch in Steamworks. Library assets and Steam Playtest arrive in v1.1.
+Flow: run the printed **preview** steamcmd command first (it uploads nothing). When it's clean and everything passes, hand the user `ship.py steam . --real` to run themselves: it rewrites the vdf with `Preview "0"` and, when `steam.builder` is set and steamcmd is on PATH, **runs the upload** (section 7); otherwise it prints the real command. Then the human sets the build live on a branch in Steamworks.
+
+**Demo / Playtest:** `ship.py demo .` prints the Steam Playtest and Next Fest checklists (dates change: it links the Next Fest page). It reports which of `steam.playtest_appid`, `demo_appid`, `demo_depotid` are set in `studio.json`; with both demo ids it writes `steam/demo_build.vdf` (`Preview "1"`) and prints its preview command. Nothing contacts Steamworks.
 
 ## 6. Web
-`ship.py web .` checks `index.html` and root-absolute URLs, boot-checks the build, runs artgate and gate, and prints the steps:
-- **GitHub Pages:** push the repo and set Settings > Pages to main / (root), or `git subtree push --prefix <build> origin gh-pages` and pick the gh-pages branch, or copy the build into `/docs`.
-- **Netlify:** `netlify deploy --dir <build>` for a draft URL, then `--prod` (printed only when everything passes).
+`ship.py web . [--host pages|netlify]` (default: both, dry run) checks `index.html` and root-absolute URLs, boot-checks the build, runs artgate and gate, and prints the steps:
+- **pages:** (a) `git subtree push --prefix <build> origin gh-pages`, then Settings > Pages > gh-pages; or (b) copy the build into `docs/` and pick main /docs. The user runs these.
+- **netlify:** writes `netlify.toml` (`publish = "<build>"`) only if absent, never overwriting theirs; prints `netlify deploy --dir <build>` for a draft URL, then the `--prod` command when everything passes.
 
-## 7. Before the real upload
+## 7. --real (gated upload)
+`itch`, `steam` and `web --host netlify` accept `--real`. It runs the upload only when artgate passes, **every** `## <stage>` in `gates.md` is fully ticked, committed and tracked, and the boot check passes (itch/web). It prints `RAN <cmd>` and `UPLOAD_EXIT=<code>` and exits with the tool's code. Otherwise `Real upload command withheld: <reasons>` (exit 1, nothing ran). If the tool isn't on PATH it prints the command and `<tool> not found on PATH, so nothing ran`. Steam needs `steam.builder` (the Steam build account) in `studio.json` to run; without it the command is printed with `<your_steam_user>`. Remember the hard rule: hand the user the command by default.
+
+## 8. Before the real upload
 The release gate needs a final playtest of the packaged build. If there isn't one, offer the `playtest` skill (`run build/itch.zip --mode final`), then tell the human which release box they can tick themselves.
+
+## Next loop
+End with one line `Next loop: <loop> (/playbench:<skill>)`. Default after a release: `Next loop: postmortem (/playbench:postmortem)`. If the user keeps running human sessions on the released build: `Next loop: log (/playbench:log)`. When unsure, use `LOOP`/`NEXT` from a fresh `studio.py status`.
