@@ -4,11 +4,12 @@
 
 **Bots playtest your game after every feature. You stay in charge of the fun.**
 
-A Claude Code plugin for game developers: design, playtest, balance, ship.
+A Claude Code plugin for game developers that covers every loop: design, build, playtest, balance, iterate, log, ship.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)
-![Engines](https://img.shields.io/badge/works%20with-any%20HTML5%20export-blue)
+![Verified](https://img.shields.io/badge/verified-JS%20%7C%20Unity%20WebGL-blue)
+![Version](https://img.shields.io/badge/version-0.2.0-lightgrey)
 
 <img src="docs/assets/demo.gif" width="720" alt="A playbench bot playing the Dodge sample game while checks pass live">
 
@@ -35,7 +36,7 @@ playbench catches each of those early:
   <img src="docs/assets/flow-light.svg" width="100%" alt="Design, build, bot playtest (FAIL loops back to build), balance, iterate, human log (notes and feedback feed iterate), ship once you tick the gates">
 </picture>
 
-Each loop is one skill (`/playbench:design`, `build`, `playtest`, `balance`, `iterate`, `log`, `ship`), and `status` tells you which loop you are in. Also new in 0.2:
+Each loop is one skill (`/playbench:design`, `build`, `playtest`, `balance`, `iterate`, `log`, `ship`), and `/playbench:studio` tells you which loop you're in and what to do next. Also new in 0.2:
 
 | | |
 |---|---|
@@ -51,7 +52,7 @@ Each loop is one skill (`/playbench:design`, `build`, `playtest`, `balance`, `it
 
 <img src="docs/assets/showcase.png" width="100%" alt="Four steps: ask what's next, bots playtest every feature, balance on the real build, ship only when you say so">
 
-<sub>Every screen above is real output from the bundled <code>examples/dodge-web</code> game.</sub>
+<sub>Built from real runs on the bundled <code>examples/dodge-web</code> game, trimmed to fit.</sub>
 
 ## Install
 
@@ -62,7 +63,7 @@ Run these in Claude Code:
 /plugin install playbench@playbench
 ```
 
-Requires Python 3.11 or newer. For browser playtests you also need Playwright; playbench prints the exact install line when you first need it.
+Requires Python 3.11 or newer. Browser playtests also need Playwright, and the `art` skill needs Pillow. playbench prints the exact install line the first time you need one.
 
 ## Try it in 60 seconds
 
@@ -70,8 +71,12 @@ Open Claude Code in your game folder and just talk:
 
 1. **"Set up playbench for a jam."** A few quick questions: what kind of project, how much you code, engine, deadline.
 2. **"Let's design it."** You get a hook, a core loop and a must/cut list on one page.
-3. **"Playtest it."** after each feature.
-4. **"Ship to itch."** when you're ready.
+3. **"Build the next feature."** Claude writes one small slice, then bots playtest it.
+4. **"A friend played it, here are my notes."** These are logged against your design goals.
+5. **"What should we change?"** You get one ranked list from the bots, your notes and player feedback.
+6. **"Ship to itch."** when you're ready.
+
+Not sure where you are? Ask **"what's next?"**.
 
 ## Made for
 
@@ -83,11 +88,11 @@ Open Claude Code in your game folder and just talk:
 | 🎨 **Designer who codes a little** | Claude writes the test hooks and bots; you tune numbers in data files |
 | 🎓 **Student** | A course AI policy (open, disclose or banned) and an honest record of AI use |
 
-**Engines:** any HTML5 export (plain JS, Phaser, Godot web, Unity WebGL, GameMaker, Construct, GDevelop). **Verified on plain JS and Unity 6 WebGL** ([examples](examples)). Godot native is experimental.
+**Engines:** **verified on plain JS and Unity 6 WebGL** ([examples](examples)). Other HTML5 exports (Phaser, Godot web, GameMaker, Construct, GDevelop) use the same probe contract but are untested. Godot native is experimental.
 
 ## What bots can't do
 
-Bots find what's broken. They can't tell you whether the game is **fun**. playbench asks for a human playtest before every gate, and only humans tick gates.
+Bots find what's broken. They can't tell you whether the game is **fun**. The early gates (prototype and vertical slice) require a human playtest, and only humans tick gates.
 
 ## Learn more
 
