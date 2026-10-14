@@ -85,7 +85,7 @@ Bots find what's broken. They can't tell you whether the game is **fun**. playbe
 
 ## Contributing
 
-Issues and PRs are welcome. Run `python scripts/selftest.py` before opening a PR; it should print `ok selftest`.
+Issues and PRs are welcome. Run `python scripts/selftest.py` before opening a PR; it should print `ok selftest`. To regenerate the README visuals, run `python docs/assets/generate.py`.
 
 ## License
 
