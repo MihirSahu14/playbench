@@ -4,10 +4,11 @@ description: Use when the user wants to discuss a game idea, brainstorm (includi
 allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, Glob, Grep
 ---
 !`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"`
+> **Any agent:** Claude Code runs the line above for you. If no `KEY=value` status block appears above, run `python "<SKILL_DIR>/../../scripts/studio.py" status` yourself (`py -3` on Windows, `python3` elsewhere) and treat its output as the status block. `<SKILL_DIR>` is the folder holding this SKILL.md; `<PLUGIN>` is the `PLUGIN` value from status. Names like `/playbench:build` mean "the playbench build skill" on any agent.
 
 # playbench design: one discussion, one page
 
-Output is exactly one file: `design/design.md`, built from `${CLAUDE_SKILL_DIR}/design-template.md`, about 60 lines at most. Never more docs. If `INIT=no`, suggest `/playbench:studio` first, but carry on if the user just wants to talk ideas (assume hobby).
+Output is exactly one file: `design/design.md`, built from `<SKILL_DIR>/design-template.md`, about 60 lines at most. Never more docs. If `INIT=no`, suggest `/playbench:studio` first, but carry on if the user just wants to talk ideas (assume hobby).
 
 If `design/design.md` exists, read it and **edit it in place**; ask only about what is changing. Leave its `## History` section alone: `/playbench:iterate` moves replaced text there later, and it is outside the ~60-line page.
 

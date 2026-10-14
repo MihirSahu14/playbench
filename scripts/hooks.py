@@ -32,8 +32,42 @@ def find_game(cwd):
     return None
 
 
+PATCH_FILE = re.compile(r"^\*\*\* (?:Update|Add) File: (.+)$")
+
+
+def strings(x):
+    """Every string inside a tool_input (other agents nest commands and patches differently)."""
+    if isinstance(x, str):
+        yield x
+    elif isinstance(x, dict):
+        for v in x.values():
+            yield from strings(v)
+    elif isinstance(x, list):
+        for v in x:
+            yield from strings(v)
+
+
+def patch_ticks(patch, cwd):
+    """Net [x] lines an apply_patch-style patch adds to a playbench gates.md (Codex edits files this way)."""
+    n, live = 0, False
+    for line in patch.splitlines():
+        if m := PATCH_FILE.match(line):
+            f = Path(cwd) / m.group(1).strip()
+            live = f.name.lower() == "gates.md" and (f.parent / "studio.json").is_file()
+        elif line.startswith("*** "):
+            live = False
+        elif live and line[:1] in "+-":
+            n += ticks(line[1:]) * (1 if line[0] == "+" else -1)
+    return n
+
+
 def gates(ev):
     tool, ti, cwd = ev.get("tool_name"), ev.get("tool_input") or {}, ev.get("cwd") or os.getcwd()
+    if tool not in ("Bash", "PowerShell", "Edit", "Write", "MultiEdit"):  # other agents' shell/patch tools
+        texts = list(strings(ti))
+        if any(patch_ticks(s, cwd) > 0 for s in texts):
+            return DENY
+        tool, ti = "Bash", {"command": " ".join(texts)}
     if tool in ("Bash", "PowerShell"):
         cmd = ti.get("command") or ""
         if "gates.md" in cmd.lower() and TICK_TOKEN.search(cmd) and WRITER.search(cmd) and (find_game(cwd) or any(
@@ -121,7 +155,7 @@ def selftest():
         t = time.perf_counter()
         r = subprocess.run([sys.executable, me, cmd], input=data, capture_output=True, timeout=30)
         worst = max(worst, time.perf_counter() - t)
-        assert r.returncode == 0, r
+        assert r.returncode == (2 if r.stdout.strip() and isinstance(ev, dict) and "turn_id" in ev else 0), r
         return json.loads(r.stdout) if r.stdout.strip() else None
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -150,6 +184,13 @@ def selftest():
         sh = lambda t, c: {"tool_name": t, "cwd": str(g), "tool_input": {"command": c}}
         assert deny(run("gates", sh("Bash", r"sed -i 's/- \[ \]/- [x]/' gates.md")))
         assert run("gates", sh("Bash", r'grep -n "\[x\]" gates.md')) is None
+        cx = lambda tool, ti: {"tool_name": tool, "turn_id": "t1", "cwd": str(g), "tool_input": ti}  # Codex-shaped events
+        tick_patch = ("*** Begin Patch\n*** Update File: gates.md\n@@\n-- [ ] Latest quick playtest is PASS\n"
+                      "+- [x] Latest quick playtest is PASS\n*** End Patch")
+        assert deny(run("gates", cx("apply_patch", {"input": tick_patch})))
+        assert run("gates", cx("apply_patch", {"input": tick_patch.replace("gates.md", "notes.md")})) is None
+        assert deny(run("gates", cx("shell", {"command": ["bash", "-lc", r"sed -i 's/- \[ \]/- [x]/' gates.md"]})))
+        assert run("gates", cx("shell", {"command": ["bash", "-lc", "ls"]})) is None
         assert deny(run("gates", sh("PowerShell", r"(Get-Content gates.md) -replace '\[ \]','[x]' | Set-Content gates.md")))
         assert run("gates", {**sh("Bash", r"sed -i 's/- \[ \]/- [x]/' gates.md"), "cwd": str(bare)}) is None
         sed = r"sed -i 's/- \[ \]/- [x]/' "
@@ -206,14 +247,19 @@ def main():
     if cmd == "selftest":
         selftest()
         return
+    code = 0
     try:
         ev = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace"))
         out = {"gates": gates, "stop": stop}[cmd](ev) if isinstance(ev, dict) else None
         if out:
             print(json.dumps(out))
+            if "turn_id" in ev:  # Codex: a block is exit 2 with the reason on stderr
+                reason = out.get("reason") or out["hookSpecificOutput"]["permissionDecisionReason"]
+                print(reason, file=sys.stderr)
+                code = 2
     except BaseException:
         pass  # fail open: a broken hook must never block a session
-    sys.exit(0)
+    sys.exit(code)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,23 @@
 
 Details behind the [README](../README.md).
 
+## Platforms
+One repo, packaged for each agent:
+
+| File | Read by |
+|---|---|
+| `.claude-plugin/plugin.json`, `marketplace.json`, `hooks/hooks.json` | Claude Code |
+| `.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json`, `hooks/hooks.json` | Codex |
+| `plugin.json` (open [Agent Plugins](https://agent-plugins.org) 1.0.0 format) | Codex, Cursor, GitHub Copilot CLI |
+| `gemini-extension.json` | Gemini CLI |
+| `scripts/install.py` | Anything that reads `SKILL.md` folders (`~/.agents/skills` by default) |
+
+**Portable skills.** Each skill's first line is Claude Code's auto-run status line. The next line tells any other agent to run `studio.py status` itself, using a path relative to the skill folder. Paths in the skills use `<SKILL_DIR>` and `<PLUGIN>`, never a `${CLAUDE_…}` variable, and the selftest enforces this. Persona playtests use subagents where the agent has them, and one persona after another where it doesn't.
+
+**Hooks.** `hooks.py` reads Claude Code and Codex events alike. It also understands Codex's `apply_patch` and shell tools, and blocks Codex with exit 2. Agents without hooks get the same rules from the skill text: never tick a gate box, and run a quick playtest after each feature.
+
+**Data folder.** Claude Code passes `CLAUDE_PLUGIN_DATA`. Other agents use `PLAYBENCH_DATA`, or `~/.playbench` by default.
+
 ## Requirements
 - **Python 3.11+.** The scripts use the stdlib only.
 - **For web playtests, balance sweeps and boot checks:** Playwright with Chromium. Install it with the exact line `status` prints, for example:
@@ -22,7 +39,7 @@ Details behind the [README](../README.md).
 - **Student or educator** (`learn`): a course AI policy (`open`, `disclose` or `banned`), a rubric block on playtest reports, and under `banned` Claude only explains, reviews and runs checks.
 
 ## 60-second jam quickstart
-1. Open Claude Code in your game folder and say **"set up playbench for a jam"**. The studio skill asks: kind of project, coding comfort, engine, target and deadline.
+1. Open your agent (Claude Code, Codex, Cursor, …) in your game folder and say **"set up playbench for a jam"**. The studio skill asks: kind of project, coding comfort, engine, target and deadline.
 2. Say **"let's design it"**. You get 5 theme interpretations, a hook, a core loop and a must/cut list sized to the hours left. The result is `design/design.md`.
 3. Build a feature, then say **"playtest it"**. Bots play 3 seeds × 30 s of your real build and report boot failures, crashes, softlocks and dead input.
 4. Say **"ship to itch"**. playbench checks the itch limits, zips the build, boot-checks the zip and prints the `butler push … --dry-run` command. It gives you the real command only once the art is disclosed and you have ticked the gates.

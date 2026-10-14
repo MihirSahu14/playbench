@@ -4,12 +4,12 @@
 
 **Bots playtest your game after every feature. You stay in charge of the fun.**
 
-A Claude Code plugin for game developers that covers every loop: design, build, playtest, balance, iterate, log, ship.
+A plugin for AI coding agents that covers every game-dev loop: design, build, playtest, balance, iterate, log, ship.<br>Works with **Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI**, and any agent that reads `SKILL.md` skills.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)
+![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex%20%7C%20Cursor%20%7C%20Copilot%20%7C%20Gemini-d97757)
 ![Verified](https://img.shields.io/badge/verified-JS%20%7C%20Unity%20WebGL-blue)
-![Version](https://img.shields.io/badge/version-0.2.0-lightgrey)
+![Version](https://img.shields.io/badge/version-0.3.0-lightgrey)
 
 <img src="docs/assets/demo.gif" width="720" alt="A playbench bot playing the Dodge sample game while checks pass live">
 
@@ -40,9 +40,9 @@ Each loop is one skill (`/playbench:design`, `build`, `playtest`, `balance`, `it
 
 | | |
 |---|---|
-| 🔁 **Auto-playtest hook** | When game changes pile up, Claude is reminded to run a one-minute bot playtest |
-| 🔒 **Gate guard** | Claude can't tick a `gates.md` box, even if asked |
-| 🧭 **Agent playtests** | Claude plays menus and choices step by step from screenshots, and the path replays as a test |
+| 🔁 **Auto-playtest hook** | When game changes pile up, your agent is reminded to run a one-minute bot playtest (Claude Code, Codex) |
+| 🔒 **Gate guard** | Your agent can't tick a `gates.md` box, even if asked (enforced in Claude Code and Codex) |
+| 🧭 **Agent playtests** | Your agent plays menus and choices step by step from screenshots, and the path replays as a test |
 | 🎭 **Personas** | Newbie, min-maxer, explorer and quitter comment on milestone runs (opinion, not a fun verdict) |
 | 🎨 **`art`** | Art bible, clearly labelled `_placeholder` sprites, atlases; ship blocks undisclosed ones |
 | 💬 **`feedback`** | Player comments from itch, Discord or a survey into one ranked list |
@@ -56,22 +56,27 @@ Each loop is one skill (`/playbench:design`, `build`, `playtest`, `balance`, `it
 
 ## Install
 
-Run these in Claude Code:
+| Agent | Install |
+|---|---|
+| **Claude Code** | `/plugin marketplace add MihirSahu14/playbench` then `/plugin install playbench@playbench` |
+| **Codex** (CLI + app) | `codex plugin marketplace add MihirSahu14/playbench`, then install **playbench** from `/plugins` (or the app's Plugins tab) |
+| **GitHub Copilot CLI** | `copilot plugin install MihirSahu14/playbench` |
+| **Gemini CLI** | `gemini extensions install https://github.com/MihirSahu14/playbench` |
+| **Cursor, OpenCode, Windsurf, Amp, Goose, Cline, …** | `git clone https://github.com/MihirSahu14/playbench` then `python playbench/scripts/install.py` |
 
-```
-/plugin marketplace add MihirSahu14/playbench
-/plugin install playbench@playbench
-```
+`install.py` copies the 11 skills to `~/.agents/skills/` as `playbench-<name>`, the shared folder most agents read. Use `--agent cursor|cline|windsurf|…` for a tool's own folder, `--project <dir>` for one repo only, and `python scripts/install.py list` to see every path.
 
 Requires Python 3.11 or newer. Browser playtests also need Playwright, and the `art` skill needs Pillow. playbench prints the exact install line the first time you need one.
 
+<sub>Tested live in Claude Code. The other agents use each tool's documented plugin or skills format, not yet tested end to end. The gate-guard and auto-playtest hooks run in Claude Code and Codex. On other agents the same rules live in the skill text.</sub>
+
 ## Try it in 60 seconds
 
-Open Claude Code in your game folder and just talk:
+Open your agent in your game folder and just talk:
 
 1. **"Set up playbench for a jam."** A few quick questions: what kind of project, how much you code, engine, deadline.
 2. **"Let's design it."** You get a hook, a core loop and a must/cut list on one page.
-3. **"Build the next feature."** Claude writes one small slice, then bots playtest it.
+3. **"Build the next feature."** Your agent writes one small slice, then bots playtest it.
 4. **"A friend played it, here are my notes."** These are logged against your design goals.
 5. **"What should we change?"** You get one ranked list from the bots, your notes and player feedback.
 6. **"Ship to itch."** when you're ready.
@@ -85,7 +90,7 @@ Not sure where you are? Ask **"what's next?"**.
 | 🏃 **Game-jammer** | A deadline countdown, a one-minute playtest after each feature, and an itch zip that's been boot-checked |
 | 🌙 **Solo hobbyist** | Scope that fits your hours, and a nudge when you've gone too long without testing |
 | 👥 **Small team** | Gate owners, playtest regressions between runs, Steam build config, and who-approved-what from git |
-| 🎨 **Designer who codes a little** | Claude writes the test hooks and bots; you tune numbers in data files |
+| 🎨 **Designer who codes a little** | Your agent writes the test hooks and bots; you tune numbers in data files |
 | 🎓 **Student** | A course AI policy (open, disclose or banned) and an honest record of AI use |
 
 **Engines:** **verified on plain JS and Unity 6 WebGL** ([examples](examples)). Other HTML5 exports (Phaser, Godot web, GameMaker, Construct, GDevelop) use the same probe contract but are untested. Godot native is experimental.

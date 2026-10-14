@@ -4,6 +4,7 @@ description: Use after implementing any game feature, before ticking a gate, or 
 allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, Glob, Grep
 ---
 !`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"`
+> **Any agent:** Claude Code runs the line above for you. If no `KEY=value` status block appears above, run `python "<SKILL_DIR>/../../scripts/studio.py" status` yourself (`py -3` on Windows, `python3` elsewhere) and treat its output as the status block. `<SKILL_DIR>` is the folder holding this SKILL.md; `<PLUGIN>` is the `PLUGIN` value from status. Names like `/playbench:build` mean "the playbench build skill" on any agent.
 
 # Playtest: bots play the real build
 
@@ -51,7 +52,7 @@ For each FAIL, read the screenshot in `playtests/shots/` and the code path behin
 - **console_error:** a WARN. Triage it, but don't block on it.
 
 ## 5. Tier upgrade (when the report says tier 0 or 1)
-Tier 0 sees only the screen. **Construct 3 / GDevelop / Unity WebGL / GameMaker:** paste the matching snippet from `${CLAUDE_SKILL_DIR}/adapters.md`. Tier 1 reads state (softlock, real dead-input checks). Tier 2 adds a goal-directed bot (difficulty stats, balance sweeps). Explain what is missing in one line, then:
+Tier 0 sees only the screen. **Construct 3 / GDevelop / Unity WebGL / GameMaker:** paste the matching snippet from `<SKILL_DIR>/adapters.md`. Tier 1 reads state (softlock, real dead-input checks). Tier 2 adds a goal-directed bot (difficulty stats, balance sweeps). Explain what is missing in one line, then:
 - **`AI_POLICY=banned`:** T0 only. Never write an adapter or a bot. Explain the contract if asked.
 - **coding 1-2:** offer to write the adapter yourself. At coding 2 the human reviews it.
   - Web: `window.__game = { state: () => ({over, won, paused, score, ...gameplay fields}), actions: [...KeyboardEvent.key values], bot: s => [...keys to hold] }`
@@ -73,9 +74,9 @@ When: menus, puzzles, choice-driven games, or when a quick run stalls at a choic
 6. At most 10 decisions per session, then summarize what the path showed. Keep the script: `run <BUILD> --bot script:playtests/agent/<name>.json` replays it as a regression check.
 
 ## 7. Milestone extras
-- Read the FAIL screenshots listed in the report. If there are more than 5, hand them to a subagent.
+- Read the FAIL screenshots listed in the report. If there are more than 5, hand them to a subagent (or read them in batches if your agent has no subagents).
 - Replace `(pending)` under `## Claude's review of anomaly screenshots` in the milestone `.md`. Describe only what is visible (what is on screen, what looks stuck or broken). Do not judge fun.
-- **Persona commentary:** dispatch 4 subagents in parallel, each given the `## Filmstrip` PNGs, the report `.md`/`.json`, any `playtests/shots/agent-*` shots and the experience goals from `design/design.md`:
+- **Persona commentary:** dispatch 4 subagents in parallel (no subagents on your agent? write the 4 personas yourself, one after another, without reusing earlier persona text), each given the `## Filmstrip` PNGs, the report `.md`/`.json`, any `playtests/shots/agent-*` shots and the experience goals from `design/design.md`:
   - **Newbie:** first time, reads nothing. **Min-maxer:** optimal play and exploits. **Explorer:** edges, boundaries, secrets. **Quitter:** when and why they would stop.
   - Each returns at most 5 bullets. Replace `(pending)` under `## Persona commentary` with `### <Persona> (AI persona, opinion only)` sections.
   - Never phrase it as fun / not fun, never tick a box. Humans decide.

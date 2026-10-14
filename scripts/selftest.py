@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 failed = []
-for name in ("studio", "playtest", "balance", "ship", "hooks", "art", "telemetry"):
+for name in ("studio", "playtest", "balance", "ship", "hooks", "art", "telemetry", "install"):
     script = ROOT / "scripts" / f"{name}.py"
     if not script.exists():
         print(f"SKIP {name}: not built")
@@ -28,6 +28,8 @@ for f in skills:
     for bad, why in ((meta.get("name") != f.parent.name, "name != folder"),
                      (not meta.get("description"), "no description"), (not meta.get("allowed-tools"), "no allowed-tools"),
                      (lines[end + 1:end + 2] != [CTX], "first body line is not the status line"),
+                     (not "".join(lines[end + 2:end + 3]).startswith("> **Any agent:**"), "no portable status fallback line"),
+                     (any("${CLAUDE_" in l for l in lines[end + 2:]), "Claude-only path variable outside the status line"),
                      (heads[-1:] != ["## Next loop"], "last ## heading is not ## Next loop"),
                      (any(re.match(r"\s*- \[[xX]\]", l) for l in lines), "ticked box"), (len(lines) > 160, ">160 lines")):
         if bad:
@@ -38,8 +40,22 @@ if hj.exists():
         json.loads(hj.read_text("utf-8"))
     except ValueError as e:
         failed.append(f"hooks.json: {e}")
+# one plugin, many agents: every manifest must parse and agree on name and version
+AP_KEYS = {"$schema", "name", "version", "description", "author", "homepage", "repository", "license", "keywords", "extensions"}
+mans = {}
+for m in ("plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "gemini-extension.json",
+          ".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+    try:
+        mans[m] = json.loads((ROOT / m).read_text("utf-8"))
+    except (OSError, ValueError) as e:
+        failed.append(f"manifest {m}: {e}")
+if ap := mans.get("plugin.json"):  # Agent Plugins 1.0.0: closed field list, a bad field rejects the whole plugin
+    if ap.get("$schema") != "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json" or set(ap) - AP_KEYS             or not re.fullmatch(r"[a-z0-9](?:[a-z0-9]|[-.](?=[a-z0-9])){0,63}", ap.get("name", "")):
+        failed.append("manifest plugin.json: not valid Agent Plugins 1.0.0")
+if len({(d.get("name"), d.get("version")) for k, d in mans.items() if "marketplace" not in k}) > 1:
+    failed.append("manifests disagree on name/version")
 if len(failed) == n:
-    print(f"ok skills lint ({len(skills)} skills)")
+    print(f"ok skills lint ({len(skills)} skills, {len(mans)} manifests)")
 else:
     print("\n".join(f"FAIL {x}" for x in failed[n:]))
 

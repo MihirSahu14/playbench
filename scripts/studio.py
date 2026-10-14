@@ -41,8 +41,8 @@ ALLOWED = "explain,review,status,playtest-T0,artgate"
 PROBE_PY = ("import os,sys,sysconfig,importlib.util;print(sys.executable);print(sys.version_info>=(3,11));"
             "print(os.path.exists(os.path.join(sysconfig.get_path('stdlib'),'EXTERNALLY-MANAGED')));"
             "print(importlib.util.find_spec('playwright') is not None)")
-# ponytail: Claude Code sets CLAUDE_PLUGIN_DATA for plugins; the home fallback covers plain shells
-DATA = Path(os.environ.get("CLAUDE_PLUGIN_DATA") or Path.home() / ".playbench")
+# ponytail: Claude Code sets CLAUDE_PLUGIN_DATA for plugins; PLAYBENCH_DATA or ~/.playbench covers every other agent
+DATA = Path(os.environ.get("CLAUDE_PLUGIN_DATA") or os.environ.get("PLAYBENCH_DATA") or Path.home() / ".playbench")
 VENV = DATA / "venv"
 VENV_PY = VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 LOOPS = ["design", "build", "test", "balance", "iterate", "log", "ship"]

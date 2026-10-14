@@ -4,6 +4,7 @@ description: Use when the user wants to tune game numbers, check difficulty, com
 allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, Glob, Grep
 ---
 !`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"`
+> **Any agent:** Claude Code runs the line above for you. If no `KEY=value` status block appears above, run `python "<SKILL_DIR>/../../scripts/studio.py" status` yourself (`py -3` on Windows, `python3` elsewhere) and treat its output as the status block. `<SKILL_DIR>` is the folder holding this SKILL.md; `<PLUGIN>` is the `PLUGIN` value from status. Names like `/playbench:build` mean "the playbench build skill" on any agent.
 
 # Balance: compare numbers, the human picks
 
@@ -48,7 +49,7 @@ Needs a CSV with one row per item (at least 3, best 6+), an id column (first col
 It fits `cost = a x benefit + b` and flags items more than 2 sigma off the line as overpriced or underpriced. If benefits aren't comparable (1 hp is not 1 atk), say so and suggest a weighted column.
 
 ## 3. Sim: Monte Carlo economy model
-1. If `balance/model.py` is missing, copy `${CLAUDE_PLUGIN_ROOT}/skills/balance/model-template.py` there. Fill it from the knobs and economy in `design/design.md`: at `CODING` 1-2 Claude writes it (2: the human reviews it); at `CODING=3` or `AI_POLICY=banned` the human writes it and Claude explains and reviews.
+1. If `balance/model.py` is missing, copy `<PLUGIN>/skills/balance/model-template.py` there. Fill it from the knobs and economy in `design/design.md`: at `CODING` 1-2 Claude writes it (2: the human reviews it); at `CODING=3` or `AI_POLICY=banned` the human writes it and Claude explains and reviews.
 2. Say plainly: **the model file is the user's own code and `sim` executes it.** Read any model you didn't write before running it.
 3. Run:
 ```

@@ -1,9 +1,9 @@
 {
-  "description": "playbench: block Claude from ticking gates.md boxes; remind it to run a quick bot playtest when game changes pile up. Acts only in folders with studio.json.",
+  "description": "playbench: block the agent from ticking gates.md boxes; remind it to run a quick bot playtest when game changes pile up. Acts only in folders with studio.json. Claude Code and Codex.",
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|Bash|PowerShell",
+        "matcher": "Edit|Write|MultiEdit|Bash|PowerShell|apply_patch|shell|local_shell|exec_command",
         "hooks": [
           {
             "type": "command",

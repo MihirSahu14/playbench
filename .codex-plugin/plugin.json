@@ -1,0 +1,40 @@
+{
+  "name": "playbench",
+  "version": "0.3.0",
+  "description": "Every game-dev loop for AI coding agents (Claude Code, Codex, Cursor, Copilot, Gemini CLI and more): one-page design, build in small playtested slices, bot and agent playtests on your real build, balance sweeps and sims, iterate from evidence, human playtest logs and player feedback, and itch/Steam/web shipping that blocks undisclosed AI art. Humans own the fun and every gate.",
+  "author": {
+    "name": "Mihir Sahu"
+  },
+  "homepage": "https://github.com/MihirSahu14/playbench",
+  "repository": "https://github.com/MihirSahu14/playbench",
+  "license": "MIT",
+  "keywords": [
+    "gamedev",
+    "playtest",
+    "itch",
+    "steam",
+    "godot",
+    "balance",
+    "game-design",
+    "game-jam",
+    "indie"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "playbench",
+    "shortDescription": "Every game-dev loop: design, build, bot playtests, balance, iterate, ship",
+    "longDescription": "Every game-dev loop for AI coding agents (Claude Code, Codex, Cursor, Copilot, Gemini CLI and more): one-page design, build in small playtested slices, bot and agent playtests on your real build, balance sweeps and sims, iterate from evidence, human playtest logs and player feedback, and itch/Steam/web shipping that blocks undisclosed AI art. Humans own the fun and every gate.",
+    "developerName": "Mihir Sahu",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/MihirSahu14/playbench",
+    "defaultPrompt": [
+      "Set up playbench for a game jam",
+      "Playtest my game build",
+      "What should I change next in my game?"
+    ]
+  }
+}

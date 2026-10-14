@@ -4,6 +4,7 @@ description: Use when the user asks about art style, an art bible, a palette or 
 allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, Glob, Grep
 ---
 !`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"`
+> **Any agent:** Claude Code runs the line above for you. If no `KEY=value` status block appears above, run `python "<SKILL_DIR>/../../scripts/studio.py" status` yourself (`py -3` on Windows, `python3` elsewhere) and treat its output as the status block. `<SKILL_DIR>` is the folder holding this SKILL.md; `<PLUGIN>` is the `PLUGIN` value from status. Names like `/playbench:build` mean "the playbench build skill" on any agent.
 
 # Art: a one-page bible, labelled placeholders, atlases
 
@@ -24,7 +25,7 @@ The status lines above give `RUN`, `PLUGIN`, `CONTEXT`, `CODING`, `AI_POLICY`, `
 Ask one question at a time, each with a default. Skip steps the user doesn't need (a jam may stop after step 3).
 
 ## 1. Art bible (`art/bible.md`)
-If it exists, read it and edit in place. Otherwise read `design/design.md` (hook and pillars) and draft from `${CLAUDE_SKILL_DIR}/bible-template.md`, keeping its exact shape (`ship.py` parses `## Palette` and `## Fonts`):
+If it exists, read it and edit in place. Otherwise read `design/design.md` (hook and pillars) and draft from `<SKILL_DIR>/bible-template.md`, keeping its exact shape (`ship.py` parses `## Palette` and `## Fonts`):
 1. **Palette.** Offer 2-3 palettes drawn from the hook, each as a hex list with roles, e.g. `A) bg #1b1b2f, text #f5f5f5, link #ffcc00, button #e94560, hero #4fa3ff`. Default: A. `bg`, `text`, `link` and `button` are required; other colors get names (`hero`, `enemy`, `pickup`).
 2. **Fonts.** Two Google Fonts: heading and body (default: Press Start 2P / Inter for pixel art, Fredoka / Inter otherwise).
 3. **Pixel density.** Tile size and screen scale (default `tile: 16`, `scale: 3`; non-pixel art: `tile: 64`, `scale: 1`).

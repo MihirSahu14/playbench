@@ -4,6 +4,7 @@ description: Use when the user wants to build, code or implement the next featur
 allowed-tools: Bash(python:*), Bash(python3:*), Bash(py:*), Read, Write, Edit, Glob, Grep
 ---
 !`python "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || py -3 "${CLAUDE_PLUGIN_ROOT}/scripts/studio.py" status || echo "playbench: no working Python 3 found"`
+> **Any agent:** Claude Code runs the line above for you. If no `KEY=value` status block appears above, run `python "<SKILL_DIR>/../../scripts/studio.py" status` yourself (`py -3` on Windows, `python3` elsewhere) and treat its output as the status block. `<SKILL_DIR>` is the folder holding this SKILL.md; `<PLUGIN>` is the `PLUGIN` value from status. Names like `/playbench:build` mean "the playbench build skill" on any agent.
 
 # Build: one small slice, then a quick playtest
 
@@ -33,7 +34,7 @@ Detect the engine from `ENGINE` and the files:
 | plain JS | `ENGINE=web`, no framework | edit the game scripts directly |
 | Phaser | `phaser` in `package.json` or a `<script>` tag | scenes, `this.input.keyboard`, `this.load` |
 | Godot | `ENGINE=godot` (`project.godot`) | GDScript on the main scene; harness is **EXPERIMENTAL** |
-| Unity / GameMaker / Construct / GDevelop HTML5 exports | export files only | Claude edits only scripts it can reach and guides editor steps in short numbered lines; probe adapters in `${CLAUDE_PLUGIN_ROOT}/skills/playtest/adapters.md` |
+| Unity / GameMaker / Construct / GDevelop HTML5 exports | export files only | Claude edits only scripts it can reach and guides editor steps in short numbered lines; probe adapters in `<PLUGIN>/skills/playtest/adapters.md` |
 
 Who writes it, by `CODING`:
 - **1:** Claude writes it, then says what changed in one plain line.
