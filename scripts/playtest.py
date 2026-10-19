@@ -242,8 +242,12 @@ def web_session(root, query, overrides, realtime, coop):
                 if box := cv.bounding_box():
                     pg.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
                 pg.keyboard.press("Enter")
-                pg.keyboard.press("Space")
-                adv(1000)
+                adv(200)
+                # Space starts some games but is an action in others (Haunt: haunt). Press it only while the
+                # game still reads as paused, or when there is no state to ask (tier 0).
+                if pg.evaluate("()=>{const s=window.__playbench.read();return s==null||typeof s!=='object'||!!s.paused}"):
+                    pg.keyboard.press("Space")
+                adv(800)
                 for _ in range(3):  # ponytail: retry the start press only while state says paused; fixed 3 tries
                     if not pg.evaluate("()=>{const s=window.__playbench.read();return !!(s&&s.paused)}"):
                         break

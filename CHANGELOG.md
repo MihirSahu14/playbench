@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.2 (2026-10-18)
+- **The start key no longer acts in-game.** The harness pressed Enter and then Space to start every game. In games where Space is an action (Haunt: haunt), every run began with a free move, which skewed bot and persona results. Space is now pressed only while the game still reads as paused, or when there is no state to ask (tier 0). Found by AI persona playtests of Haunt.
+
 ## 0.3.1 (2026-10-14)
 Fixes found by running playbench on a real game (Haunt, a 5,600-line canvas horror game):
 - **Playtests about 6× faster on heavy games.** Headless Chromium now uses the real GPU on Windows (d3d11) and macOS (metal). Haunt's quick playtest dropped from 14 min to 2 min. `PLAYBENCH_GPU=0` forces software rendering.
