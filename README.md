@@ -54,6 +54,22 @@ Each loop is one skill (`/playbench:design`, `build`, `playtest`, `balance`, `it
 
 <sub>Built from real runs on the bundled <code>examples/dodge-web</code> game, trimmed to fit.</sub>
 
+## Proven on a real game: Haunt
+
+<img src="docs/assets/haunt.png" width="100%" alt="Haunt after playbench: 'Kid is running for the door!' with the yellow guidance arrow and a cost tag, both added from playtest findings">
+
+[**Haunt**](https://mihirsahu14.github.io/haunt/) is a 5,600-line pixel-art horror game. playbench ran **3 playtest → fix loops** on it with four AI personas (Newbie, Quitter, Explorer, Min-maxer) plus bots, then shipped it live. Its developer played the result.
+
+| | Before | After 3 loops |
+|---|---|---|
+| Low-patience player | quit at 35 s | kept playing |
+| First family member flees | none within 41 s | about 28 s |
+| Novice, one full night | would quit at about 50 s | got 3 of 4 out |
+| Skilled player's fastest clear | 43 s (exploits) | 71 s (exploits nerfed) |
+| Bugs found and fixed | | about 20 |
+
+Testing Haunt also improved playbench itself: playtests run **6× faster** on heavy games, and replays are now **deterministic**. <sub>The persona results are AI opinion; the evidence is in [Haunt's playtests](https://github.com/MihirSahu14/haunt/tree/main/playtests) and [design iterations](https://github.com/MihirSahu14/haunt/tree/main/design/iterations).</sub>
+
 ## Install
 
 | Agent | Install |
