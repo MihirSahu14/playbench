@@ -68,7 +68,7 @@ Each loop is one skill (`/playbench:design`, `build`, `playtest`, `balance`, `it
 
 Requires Python 3.11 or newer. Browser playtests also need Playwright, and the `art` skill needs Pillow. playbench prints the exact install line the first time you need one.
 
-<sub>Tested live in **Claude Code** and **Codex**, where the studio skill and a full bot playtest both pass. The other agents use each tool's documented plugin or skills format but haven't been tested end to end yet. The gate-guard and auto-playtest hooks run in Claude Code and Codex. On other agents the same rules live in the skill text.</sub>
+<sub>Tested live in **Claude Code**, **Codex**, **Cursor**, **GitHub Copilot** and **Gemini CLI**. The gate-guard and auto-playtest hooks run in Claude Code and Codex. On other agents the same rules live in the skill text.</sub>
 
 ## Try it in 60 seconds
 
