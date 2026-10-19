@@ -69,7 +69,7 @@ When: menus, puzzles, choice-driven games, or when a quick run stalls at a choic
 1. The script is `playtests/agent/<name>.json`; it starts as `[]` (created if missing).
 2. Run `<RUN> "<PLUGIN>/scripts/playtest.py" agent <BUILD> --script playtests/agent/<name>.json --out playtests` (`--then idle|random|policy` keeps playing after the script; default `pause`).
 3. Exit 3 prints `DECISION=<json>`: read it (`t`, `reason` choices|stuck|crash|script_end, `state`, `actions`) and its `.png`. A crash also prints `ERROR=` lines: triage it like a crash FAIL.
-4. Choose inputs as a first-time player would, and explain each choice in one line. Append entries with `t` >= the decision `t`; end with an entry like `{"t": <when to look again>, "keys": []}`. Use only `actions` keys.
+4. Choose inputs as a first-time player would, and explain each choice in one line. Append entries with `t` >= the decision `t`; end with an entry like `{"t": <when to look again>, "keys": []}`. Use only `actions` keys. Keep entries at least 0.1 s apart (the harness steps every 0.1 s; a `WARN` names any shorter tap, which is never pressed).
 5. Rerun (the fake clock replays identically). Exit 0 prints `AGENT_DONE over=... won=... t=...`.
 6. At most 10 decisions per session, then summarize what the path showed. Keep the script: `run <BUILD> --bot script:playtests/agent/<name>.json` replays it as a regression check.
 

@@ -9,7 +9,7 @@ A plugin for AI coding agents that covers every game-dev loop: design, build, pl
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex%20%7C%20Cursor%20%7C%20Copilot%20%7C%20Gemini-d97757)
 ![Verified](https://img.shields.io/badge/verified-JS%20%7C%20Unity%20WebGL-blue)
-![Version](https://img.shields.io/badge/version-0.3.2-lightgrey)
+![Version](https://img.shields.io/badge/version-0.3.3-lightgrey)
 
 <img src="docs/assets/demo.gif" width="720" alt="A playbench bot playing the Dodge sample game while checks pass live">
 

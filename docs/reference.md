@@ -129,21 +129,25 @@ Each loop has one skill, and every skill ends with one line `Next loop: <loop> (
 | `mash` | every 100 ms a fresh random set of keys, start keys included (seeded) |
 | `script:<file.json>` | `[{"t": 0.0, "keys": ["ArrowRight"]}, {"t": 1.5, "keys": []}]`: each entry held from its `t` until the next; the last keys stay held |
 
+**The 0.1 s grid.** Bots act on a fixed 100 ms step (web and Godot): at each step the harness reads the state, then presses the keys of the last script entry with `t` at or before that step. An entry held for less than one step (e.g. a tap at `1.21` released at `1.25`) is never pressed, and the harness prints a `WARN` naming it. Keep entries at least 0.1 s apart; a tap is a press at `t` and a release at `t + 0.1`. Web runs use Playwright's fake clock, paused at a fixed epoch with `performance.now()` starting at 0, so the same script and seed replay exactly.
+
 Other `run` flags: `--seeds N`, `--seconds S`, `--override FILE:KEY=V` or `NAME=V` (repeatable), `--realtime` (threaded builds), `--coop` (COOP/COEP headers), `--windowed` (Godot), `--out playtests`.
+
+Reports are named `<stamp>-<mode>.json/.md`. A run with an explicit bot other than `policy` (`--bot mash`, `random`, `idle`, `script:…`) is named `<stamp>-<mode>-<bot>.json/.md` instead: it is compared only with earlier runs of that bot, and it never becomes the `<mode>` regression baseline or clears quick playtest debt in `status`.
 
 ### Agent playtests
 For menus, puzzles and choice-driven games (web only; not under `AI_POLICY=banned`):
 
-`playtest.py agent <build> --script playtests/agent/<name>.json [--seed 1] [--seconds 60] [--then pause|idle|random|policy] [--out playtests]`
+`playtest.py agent <build> --script playtests/agent/<name>.json [--seed 1] [--seconds S] [--then pause|idle|random|policy] [--out playtests]`
 
-- It plays the script (created as `[]` if missing), then the `--then` bot (default `pause`: stop where the script ends).
+- It plays the script (created as `[]` if missing), then the `--then` bot (default `pause`: stop where the script ends). `--seconds` caps the whole run; the default is the script's last `t` + 300 s, so long explorations are not cut short.
 - It pauses at the first decision point after the script: a `choices` list or `decision: true` in the state, the state frozen for 2 s while keys are held, a page error, or the end of the script under `pause`.
-- On a pause it writes `playtests/shots/agent-<NN>.png` and `.json` (`t`, `reason`, `state`, `actions`, `script`, `seed`), prints `DECISION=<json>` and exits 3. Claude appends its next inputs to the script and reruns; the fake clock replays the path exactly.
+- On a pause it writes `playtests/shots/agent-<NN>.png` and `.json` (`t`, `reason`, `state`, `actions`, `script`, `seed`, `seconds`), prints `DECISION=<json>` and exits 3. Claude appends its next inputs to the script and reruns; the fake clock replays the path exactly.
 - At the end it prints `AGENT_DONE over=<bool> won=<bool> t=<s>` and exits 0. The skill stops after 10 decisions.
 - The script stays in your repo: `run --bot script:playtests/agent/<name>.json` replays it as a regression test.
 
 ### Personas
-Milestone and final reports include a `## Filmstrip` (up to 6 frames per run) and a `## Persona commentary` section. The playtest skill fills it with four AI personas (newbie, min-maxer, explorer, quitter), each at most 5 bullets and labelled *AI persona, opinion only*. They never call the game fun or not fun and never tick a box.
+Milestone and final reports include a `## Filmstrip` (up to 6 frames from the policy bot's run when one played, else the first run, saved as `shots/<stamp>-<mode>-film-<n>.png`) and a `## Persona commentary` section. The playtest skill fills it with four AI personas (newbie, min-maxer, explorer, quitter), each at most 5 bullets and labelled *AI persona, opinion only*. They never call the game fun or not fun and never tick a box.
 
 ### Human playtests and logs
 - `playtest.py sheet <game> [--out playtests]` writes `<stamp>-sheet.md`, a printable observation sheet ("watch, don't explain") with one line per experience goal from `design/design.md`.
@@ -155,12 +159,12 @@ Milestone and final reports include a `## Filmstrip` (up to 6 frames per run) an
 ### Balance
 | Command | Does |
 |---|---|
-| `balance.py sweep <game> --knob NAME [--values a,b,c] [--seeds N] [--seconds S]` | plays the real build per knob value with the policy bot (web, or Godot via `probe_knobs`); knobs come from the `## Knobs` table in `design/design.md` |
+| `balance.py sweep <game> --knob NAME [--values a,b,c] [--seeds N] [--seconds S] [--out DIR]` | plays the real build per knob value with the policy bot (web, or Godot via `probe_knobs`); knobs come from the `## Knobs` table in `design/design.md`. Writes the table to `<out>/<stamp>-sweep-<knob>.md` (default `<game>/balance`). Values stay integers when every value is one (`19`, not `19.0`) |
 | `balance.py costcurve <csv> [--cost COL] [--benefit a,b] [--id COL] [--out balance]` | fits cost against summed benefit (robust Theil-Sen) and flags items more than 2 sigma off the line as overpriced or underpriced |
 | `balance.py sim <model.py> [--runs 1000] [--seed 1] [--knob k=v]... [--out balance]` | runs your economy model (copy `skills/balance/model-template.py` to `balance/model.py`: `KNOBS`, `TICKS`, `init`, `step`, `metrics`, optional `LIMITS`, `DEADLOCK_TICKS`) and reports p10/p50/p90 per metric, early ends, deadlocks and runaways |
 | `balance.py matrix <csv> [--iters 20000] [--out balance]` | square payoff matrix (cells 0..1 read as win rates): Nash mix by fictitious play, dominated and dominant strategies, game value |
 
-`--out balance` saves `balance/<YYYY-MM-DD-HHMM>-<kind>.md` and prints `REPORT=<path>`. A model sim is only as true as the model; real players are not Nash players.
+`--out balance` saves `balance/<YYYY-MM-DD-HHMM>-<kind>.md` and prints `REPORT=<path>` (`sweep` always saves, as `<stamp>-sweep-<knob>.md`). A model sim is only as true as the model; real players are not Nash players.
 
 ### Art
 The art skill writes `art/bible.md` (palette with `bg`, `text`, `link`, `button` roles, fonts, pixel density, proportions, an animations table); the human approves it.
@@ -196,7 +200,7 @@ Everything lives as plain files in your game repo. There is no database. Stage, 
 | `studio.json`, `gates.md` | `studio init` (only humans tick `gates.md`) |
 | `design/design.md`, `design/build-log.md`, `design/iterations/<n>.md`, `design/journal.md`, `design/postmortem.md` | design, build, iterate, log, postmortem skills |
 | `art/bible.md`, `art/*_placeholder.png`, `art/PLACEHOLDERS.json`, `disclosure.md` | art skill and `art.py`; `disclosure.md` by you |
-| `playtests/<stamp>-<mode>.json/.md`, `playtests/shots/`, `playtests/agent/<name>.json` | `playtest.py run` and `agent` |
+| `playtests/<stamp>-<mode>[-<bot>].json/.md`, `playtests/shots/`, `playtests/agent/<name>.json` | `playtest.py run` and `agent` |
 | `playtests/<stamp>-sheet.md`, `-survey.md`, `<date>-<HHMM>-human.md` | `playtest.py sheet`/`survey`, log skill |
 | `balance/last.json`, `balance/<stamp>-<kind>.md`, `balance/model.py` | `balance.py`; the model is your code |
 | `feedback/<date>-<source>.md` | feedback skill |

@@ -37,7 +37,7 @@ Seeds and seconds come from `SIZES` (the `milestone` entry, `<seeds>x<seconds>`)
 ```
 <RUN> "<PLUGIN>/scripts/balance.py" sweep . --knob <name> [--values a,b,c] --seeds <n> --seconds <s>
 ```
-Warn that each value takes a minute or more. Exit 0: a table, and `balance/last.json` updated. Exit 2 with "needs a policy bot": route to the **playtest** skill to add one (random-input sweeps are noise). Exit 2 with an install hint: show it and stop. "unknown knob" or "no design.md": fix the Knobs table or route to **design**.
+Warn that each value takes a minute or more. Exit 0: a table, `REPORT=balance/<stamp>-sweep-<knob>.md`, and `balance/last.json` updated. Exit 2 with "needs a policy bot": route to the **playtest** skill to add one (random-input sweeps are noise). Exit 2 with an install hint: show it and stop. "unknown knob" or "no design.md": fix the Knobs table or route to **design**.
 
 **Godot sweeps (EXPERIMENTAL, unverified):** every knob reaches the game as a user arg `--<name>=<value>`, file-column knobs too, by name. The game applies them in `probe_knobs(knobs: Dictionary)` on its main scene root (called before `_ready`) or reads `OS.get_cmdline_user_args()`. Data inside the `.pck` is not patched; the game must apply the value itself.
 

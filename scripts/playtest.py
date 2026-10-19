@@ -2,14 +2,14 @@
 
     playtest.py run <build> [--mode M] [--bot idle|random|policy|mash|script:F.json] [--seeds N] [--seconds S]
                             [--override F:K=V | NAME=V]... [--realtime] [--coop] [--windowed] [--out DIR]
-    playtest.py agent <build> --script F.json [--seed 1] [--seconds 60] [--then pause|idle|random|policy] [--out DIR]
+    playtest.py agent <build> --script F.json [--seed 1] [--seconds S] [--then pause|idle|random|policy] [--out DIR]
     playtest.py sheet|survey <game> [--out DIR]
     playtest.py selftest [game_dir]
 
 Library: run(build, ...) -> report dict (spec: Report JSON). Stdlib only; playwright is imported lazily.
 A build is a dir, a .zip, or either with a ?query suffix that is passed to the game (?bug=crash).
 """
-import re, argparse, csv, hashlib, io, json, os, random, shutil, statistics, subprocess, sys, tempfile, threading, time, zipfile
+import re, argparse, csv, hashlib, io, json, math, os, random, shutil, statistics, subprocess, sys, tempfile, threading, time, zipfile
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta
 from functools import partial
@@ -63,8 +63,9 @@ def shash(s):
     return hashlib.sha1(json.dumps(s, sort_keys=True).encode()).hexdigest()[:12]
 
 
-def check_bot(bot):
-    """Validate a bot name; returns the steps [{t, keys}] of 'script:<path.json>', else []. die(2) when bad."""
+def check_bot(bot, warn=False):
+    """Validate a bot name; returns the steps [{t, keys}] of 'script:<path.json>', else []. die(2) when bad.
+    warn: print which entries the 0.1 s step grid never samples (held for less than one step)."""
     if bot in BOTS or bot.startswith("hold:"):
         return []
     if not bot.startswith("script:"):
@@ -82,6 +83,11 @@ def check_bot(bot):
             and all(isinstance(k, str) for k in e["keys"]) for e in steps)
             and [e["t"] for e in steps] == sorted(e["t"] for e in steps)):
         die(f'bad bot script {f}: need a JSON list of {{"t": seconds, "keys": [...]}} sorted by t, e.g. {SCRIPT_EX}')
+    # step i reads the last entry with t <= i/10 (i >= 1): an entry is lost when no step lands before the next one
+    lost = [e["t"] for e, n in zip(steps, steps[1:]) if round(max(1, math.ceil(round(e["t"] * 10, 6))) / 10, 1) >= n["t"]]
+    if warn and lost:  # ponytail: warn, not reject: old scripts still replay exactly as before
+        print(f"WARN: bot script {f}: entries at t={', '.join(map(str, lost))} are never pressed: the harness steps "
+              "every 0.1 s, so keep entries at least 0.1 s apart", file=sys.stderr)
     return steps
 
 
@@ -208,8 +214,10 @@ def web_session(root, query, overrides, realtime, coop):
                 rec, now, pg, steps = new_rec(seed, bot, WEB_ACTIONS), [0.0], br.new_page(), check_bot(bot)
                 pg.on("pageerror", lambda e: err(rec, now[0], e))
                 pg.on("console", lambda m: m.type == "error" and rec["console"].append(m.text))
-                if not realtime:  # fixed epoch, paused: time moves only inside run_for, so runs replay exactly
-                    pg.clock.install(time=EPOCH)
+                if not realtime:  # fixed epoch, paused: time moves only inside run_for, so runs replay exactly.
+                    # pause_at alone, never install() first: Playwright replays its clock log on goto and counts the
+                    # real ms between install and pause_at into performance.now() (5-7 ms of jitter), which shifts
+                    # the 16 ms rAF grid against our 100 ms steps, so inputs landed a frame apart run to run.
                     pg.clock.pause_at(EPOCH + timedelta(seconds=1))
                 pg.add_init_script(PROBE_JS.replace("__CFG__", json.dumps({"seed": seed, "overrides": ovr})))
                 for f, body in patched.items():
@@ -449,8 +457,8 @@ def summarize(verdict, findings, n, tier, checked_input):
             + (f" - {more} more finding{'s' * (more > 1)}" if more else "") + f" (tier {tier})")
 
 
-def regression(out, name, rep):
-    prev = sorted(p for p in out.glob(f"*-{rep['mode']}.json") if p.name < name)
+def regression(out, name, rep, kind):
+    prev = sorted(p for p in out.glob(f"*-{kind}.json") if p.name < name)
     if not prev:
         return None
     old = json.loads(prev[-1].read_text("utf-8"))
@@ -463,7 +471,7 @@ def regression(out, name, rep):
     return {"prev": prev[-1].name, "new_kinds": sorted(kinds), "stat_shifts": shifts}
 
 
-def to_md(rep, game_dir=None, film=()):
+def to_md(rep, game_dir=None, film=(), film_from=""):
     L = [rep["summary"], "", f"`{rep['build']}` | {rep['mode']} | {rep['engine']} | tier {rep['tier']} | {rep['at']}", ""]
     L += ["| severity | kind | seed | bot | t (s) | detail | shot |", "|---|---|---|---|---|---|---|"] + [
         f"| {f['severity']} | {f['kind']} | {f['seed']} | {f['bot']} | {f['t']} | {f['detail'].replace('|', '/')} | {f.get('shot') or ''} |"
@@ -477,7 +485,7 @@ def to_md(rep, game_dir=None, film=()):
     if rep["mode"] == "milestone":
         L += ["", "## Claude's review of anomaly screenshots", "(pending)"]
     if film:  # the playtest skill's persona subagents replace (pending)
-        L += ["", "## Filmstrip"] + [f"- {f}" for f in film]
+        L += ["", f"## Filmstrip ({film_from})" if film_from else "## Filmstrip"] + [f"- {f}" for f in film]
         L += ["", "## Persona commentary (AI opinion, not a fun verdict)", "(pending)"]
     L += ["", rep["cannot_judge"]]
     try:
@@ -541,25 +549,28 @@ def survey(game_dir, out_dir):
     return write_new(out_dir, "survey", "\n".join(L) + "\n")
 
 
-def write_reports(rep, out_dir, film=()):
-    out, stamp = Path(out_dir), time.strftime("%Y-%m-%d-%H%M")
-    if (out / f"{stamp}-{rep['mode']}.json").exists():  # same minute: add seconds, which still sorts after it
+def write_reports(rep, out_dir, kind=None, film_run=None):
+    """kind: the file suffix, <mode> or <mode>-<bot> (an explicit non-policy bot is not that mode's baseline)."""
+    out, stamp, kind = Path(out_dir), time.strftime("%Y-%m-%d-%H%M"), kind or rep["mode"]
+    if (out / f"{stamp}-{kind}.json").exists():  # same minute: add seconds, which still sorts after it
         stamp = time.strftime("%Y-%m-%d-%H%M%S")
-    game, base = out.resolve().parent, f"{stamp}-{rep['mode']}"
+    game, base = out.resolve().parent, f"{stamp}-{kind}"
     out.mkdir(parents=True, exist_ok=True)
-    rep["regression"] = regression(out, base + ".json", rep)
+    rep["regression"] = regression(out, base + ".json", rep, kind)
     for f in rep["findings"]:
         if f["severity"] == "FAIL" and f["_png"]:
             (out / "shots").mkdir(exist_ok=True)
-            f["shot"] = f"shots/{stamp}-{f['kind']}-s{f['seed']}-{f['bot']}.png"
+            f["shot"] = f"shots/{stamp}-{f['kind']}-s{f['seed']}-{f['bot'].replace(':', '_')}.png"  # no ':' on Windows
             (out / f["shot"]).write_bytes(f["_png"])
         del f["_png"]
     (out / f"{base}.json").write_text(json.dumps(rep, indent=1), "utf-8")
-    paths = [f"shots/{stamp}-film-{i}.png" for i in range(1, len(film) + 1)]
+    film = film_run["film"] if film_run else []
+    paths = [f"shots/{base}-film-{i}.png" for i in range(1, len(film) + 1)]
     for f, png in zip(paths, film):
         (out / "shots").mkdir(exist_ok=True)
         (out / f).write_bytes(png)
-    (out / f"{base}.md").write_text(to_md(rep, game, paths), "utf-8")
+    who = film_run and f"seed {film_run['seed']}, {film_run['bot']} bot"
+    (out / f"{base}.md").write_text(to_md(rep, game, paths, who), "utf-8")
     if rep["mode"] == "milestone" and SHEET.is_file():
         sheet(game, out, rep["build"])
 
@@ -572,7 +583,7 @@ def run(build, mode="quick", bot=None, seeds=None, seconds=None, overrides=None,
     if mode not in MODES:
         die(f"unknown mode {mode!r}: use one of {', '.join(MODES)}")
     if bot:
-        check_bot(bot)
+        check_bot(bot, warn=True)
     seeds, seconds, overrides = seeds or MODES[mode][0], seconds or MODES[mode][1], list(overrides or [])
     path, _, query = str(build).partition("?")
     with tempfile.TemporaryDirectory() as tmp:
@@ -595,7 +606,8 @@ def run(build, mode="quick", bot=None, seeds=None, seconds=None, overrides=None,
                     idle.append(play(1, "idle", REPLAY_S))
                     k = replay[2]
                     if idle[0][k] is not None and idle[0][k] != idle[1][k]:
-                        # ponytail: heavy games can see ~1 ms of clock jitter around input; one tie-break run, 2 of 3 wins
+                        # ponytail: async work the fake clock can't hold (asset decode, threaded wasm) can still
+                        # differ; one tie-break run, 2 of 3 wins
                         third = play(1, "idle", REPLAY_S)
                         idle[:] = [x for x in idle if x[k] == third[k]][:1] + [third] if third[k] in (idle[0][k], idle[1][k]) else idle
                     if idle[0][k] is not None and idle[0][k] == idle[1][k]:
@@ -612,21 +624,23 @@ def run(build, mode="quick", bot=None, seeds=None, seconds=None, overrides=None,
     findings = detect(main, replay, tier, mode, realtime)
     verdict = "FAIL" if any(f["severity"] == "FAIL" for f in findings) else "WARN" if findings else "PASS"
     runs = [{k: r[k] for k in ("seed", "bot", "seconds", "over", "won", "time_to_over", "final")} for r in main if not r["boot"]]
-    film = main[0]["film"] if main and mode in ("milestone", "final") else []  # first main run only
+    # personas watch the goal-directed bot when one played (random input shows little of the game), else the first run
+    film_run = next((r for r in main if r["bot"] == "policy"), main[0]) if main and mode in ("milestone", "final") else None
     rep = {"version": 1, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "mode": mode, "engine": engine, "build": str(build),
            "tier": tier, "verdict": verdict, "summary": summarize(verdict, findings, len(runs), tier, bool(replay and replay[1])),
            "runs": runs, "findings": findings, "stats": stats_for(runs, tier), "overrides": overrides,
            "regression": None, "cannot_judge": CANNOT_JUDGE}
-    if out_dir:
-        write_reports(rep, out_dir, film)
+    if out_dir:  # mash, random, script... runs get <mode>-<bot> files, so they never become the <mode> baseline
+        write_reports(rep, out_dir, mode if bot in (None, "policy") else f"{mode}-{bot.partition(':')[0]}", film_run)
     for f in findings:
         f.pop("_png", None)
     return rep
 
 
-def agent(build, script, seed=1, seconds=60, then="pause", out_dir="playtests"):
+def agent(build, script, seed=1, seconds=None, then="pause", out_dir="playtests"):
     """Decision-point playtest (C4, web only): play the script, then `then`; on a pause write
-    <out>/shots/agent-<NN>.png/.json and return {"decision": path, ...}, else {"over", "won", "t"}."""
+    <out>/shots/agent-<NN>.png/.json and return {"decision": path, ...}, else {"over", "won", "t"}.
+    seconds (default: the script's last t + 300) caps the whole run, script included."""
     if then not in THENS:
         die(f"unknown --then {then!r}: use {', '.join(THENS)}")
     sc, (path, _, query) = Path(script), str(build).partition("?")
@@ -634,7 +648,8 @@ def agent(build, script, seed=1, seconds=60, then="pause", out_dir="playtests"):
         sc.parent.mkdir(parents=True, exist_ok=True)
         sc.write_text("[]\n", "utf-8")
         print(f"created empty script {sc}")
-    check_bot(f"script:{sc}")
+    steps = check_bot(f"script:{sc}", warn=True)
+    seconds = seconds or (steps[-1]["t"] if steps else 0) + 300  # a long exploration is not cut at a fixed minute
     root = Path(path)
     if (root / "project.godot").is_file():
         die("agent playtests are web-only for now")
@@ -652,7 +667,8 @@ def agent(build, script, seed=1, seconds=60, then="pause", out_dir="playtests"):
     if rec["png"]:
         (shots / f"agent-{n:02d}.png").write_bytes(rec["png"])
     js = shots / f"agent-{n:02d}.json"
-    js.write_text(json.dumps({**p, "actions": rec["actions"], "script": str(sc), "seed": seed}, indent=1), "utf-8")
+    js.write_text(json.dumps({**p, "actions": rec["actions"], "script": str(sc), "seed": seed, "seconds": seconds},
+                             indent=1), "utf-8")
     return dict(p, decision=str(js), errors=[m for _, m in rec["errors"]] or [rec["boot"]] * bool(rec["boot"]))
 
 
@@ -778,7 +794,7 @@ def selftest_adapters(have_pw):
 
 CHOICE_PAGE = """<!doctype html><canvas width=40 height=40></canvas><script>
 const t0 = performance.now();  // choices show 2.5 s after load (1 s of that is the harness start sequence)
-window.__game = {state: () => ({over: false, choices: performance.now() - t0 > 2500 ? ['left', 'right'] : []}),
+window.__game = {state: () => ({over: false, t0, choices: performance.now() - t0 > 2500 ? ['left', 'right'] : []}),
                  actions: ['ArrowLeft', 'ArrowRight']};
 </script>"""
 
@@ -789,11 +805,13 @@ def selftest_agent(g, tmp):
     with redirect_stdout(io.StringIO()):  # "created empty script"
         r = agent(str(g), sc, out_dir=out)
     assert r["reason"] == "script_end" and r["t"] <= 0.5 and sc.read_text("utf-8").strip() == "[]", r
-    assert (out / "shots" / "agent-01.png").is_file() and json.loads(Path(r["decision"]).read_text("utf-8"))["seed"] == 1
+    d = json.loads(Path(r["decision"]).read_text("utf-8"))
+    assert (out / "shots" / "agent-01.png").is_file() and d["seed"] == 1 and d["seconds"] == 300, d  # last t + 300
     (tmp / "choice").mkdir()
     (tmp / "choice" / "index.html").write_text(CHOICE_PAGE, "utf-8")
     c = agent(str(tmp / "choice"), sc, then="idle", seconds=5, out_dir=out)
     assert c["reason"] == "choices" and c["t"] >= 1 and c["decision"].endswith("agent-02.json"), c
+    assert c["state"]["t0"] == 0, c  # no real ms leak into the fake performance.now() (install() before pause_at did)
     sc.write_text('[{"t": 0, "keys": ["NoSuchKey"]}]', "utf-8")  # the last entry is pressed before any pause
     try:
         with redirect_stderr(io.StringIO()):
@@ -807,10 +825,11 @@ def selftest_agent(g, tmp):
     s = agent(f"{g}?bug=softlock", sc, seconds=15, out_dir=out)
     assert s["reason"] == "stuck" and s["t"] > 11, s
     print(f"ok (p) agent: script_end at {r['t']}s, choices at {c['t']}s, stuck at {s['t']}s")
-    m = run(str(g), mode="milestone", bot="random", seeds=1, seconds=12, out_dir=out)
+    m = run(str(g), mode="milestone", seeds=1, seconds=12, out_dir=out)  # random + policy
     md = next(out.glob("*-milestone.md")).read_text("utf-8")
     assert "## Persona commentary (AI opinion, not a fun verdict)" in md and list(m) == KEYS, md
-    assert len(list((out / "shots").glob("*-film-*.png"))) >= 2 and "## Filmstrip" in md, md
+    assert len(list((out / "shots").glob("*-milestone-film-*.png"))) >= 2, md  # the mode in the name: no overwrites
+    assert "## Filmstrip (seed 1, policy bot)" in md, md  # from the policy run, not the first (random) one
     print(f"ok (q) milestone filmstrip + persona section [{time.time() - t0:.0f}s]")
 
 
@@ -876,8 +895,10 @@ def selftest(game=None):
                         zf.write(f, f.relative_to(g).as_posix())
             r = run(str(z), mode="boot")
             ok(f"(h) zip boot [{time.time() - t0:.0f}s]", r["verdict"] == "PASS", r)
-            r = run(str(g), bot="mash", seeds=1, seconds=5)
+            r = run(str(g), bot="mash", seeds=1, seconds=5, out_dir=g / "playtests")
             ok("(k) mash", r["verdict"] != "FAIL" and r["runs"][0]["bot"] == "mash", r)
+            pt = g / "playtests"  # a mash run is never the next quick baseline (regression, studio debt)
+            assert len(list(pt.glob("*-quick.json"))) == 1 and len(list(pt.glob("*-quick-mash.json"))) == 1
             for side in ("Left", "Right"):
                 (Path(tmp) / f"{side}.json").write_text(json.dumps([{"t": 0, "keys": [f"Arrow{side}"]}]), "utf-8")
             a, r = (run(str(g), mode="sweep", bot=f"script:{Path(tmp) / f'{s}.json'}", seeds=1, seconds=3)
@@ -930,6 +951,13 @@ def selftest(game=None):
                 assert e.code == 2
             finally:
                 f.unlink()
+        f = Path(tempfile.gettempdir()) / "playbench-tap-script.json"  # taps closer than one 0.1 s step are lost
+        f.write_text(json.dumps([{"t": 0, "keys": [" "]}, {"t": 0.05, "keys": []}, {"t": 0.3, "keys": ["q"]},
+                                 {"t": 0.4, "keys": []}, {"t": 1.21, "keys": ["q"]}, {"t": 1.25, "keys": []}]), "utf-8")
+        with redirect_stderr(io.StringIO()) as e:
+            check_bot(f"script:{f}", warn=True)
+        f.unlink()
+        assert "t=0, 1.21 are never pressed" in e.getvalue(), e.getvalue()
         try:
             run(".", bot="dance")
             raise AssertionError("bad bot accepted")
@@ -961,7 +989,7 @@ def main(argv=None):
     g.add_argument("build")
     g.add_argument("--script", required=True, help="JSON list of {t, keys}; created as [] if missing")
     g.add_argument("--seed", type=int, default=1)
-    g.add_argument("--seconds", type=float, default=60)
+    g.add_argument("--seconds", type=float, help="cap for the whole run (default: the script's last t + 300)")
     g.add_argument("--then", choices=THENS, default="pause", help="bot after the script (pause: stop at its end)")
     g.add_argument("--out", default="playtests")
     for c in ("sheet", "survey"):

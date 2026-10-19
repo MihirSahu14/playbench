@@ -1,7 +1,7 @@
 {
   "name": "playbench",
   "displayName": "playbench",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Every game-dev loop for AI coding agents (Claude Code, Codex, Cursor, Copilot, Gemini CLI and more): one-page design, build in small playtested slices, bot and agent playtests on your real build, balance sweeps and sims, iterate from evidence, human playtest logs and player feedback, and itch/Steam/web shipping that blocks undisclosed AI art. Humans own the fun and every gate.",
   "author": {
     "name": "Mihir Sahu",

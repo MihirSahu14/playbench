@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.3 (2026-10-18)
+Fixes found by playtesting a real game (Haunt):
+- **Agent replays are deterministic.** The same script and seed could end in different states on Haunt (Kid fear 72 vs 92 at the same moment). The harness called Playwright's `clock.install()` and then `clock.pause_at()`; on page load Playwright replays those calls and counts the real milliseconds between them into `performance.now()`, so every run started a few ms off (5-7 ms measured, more on a busy machine). That shifted the game's 16 ms frames against the harness's 100 ms steps, and inputs landed a frame apart. The harness now calls `pause_at()` alone, so `performance.now()` starts at exactly 0.
+- **Lost taps are named.** Bots step every 0.1 s, so a script entry held for less than a step was silently never pressed. The harness now prints a `WARN` naming such entries; the 0.1 s grid is documented.
+- **Longer agent runs.** `playtest.py agent --seconds` now defaults to the script's last `t` + 300 s instead of 60 s.
+- **Filmstrips don't overwrite each other.** Frames are saved as `shots/<stamp>-<mode>-film-<n>.png`, and they come from the policy bot's run when one played, instead of the random bot's.
+- **Mash runs aren't the quick baseline.** A run with an explicit non-policy bot is saved as `<stamp>-<mode>-<bot>.json`, so it no longer becomes the next regression baseline or clears quick playtest debt. FAIL screenshots of script bots no longer have a `:` in their file name.
+- **Sweep reports.** `balance.py sweep` writes `balance/<stamp>-sweep-<knob>.md` (`--out` to change it), and integer knob values stay integers (`19`, not `19.0`).
+
 ## 0.3.2 (2026-10-18)
 - **The start key no longer acts in-game.** The harness pressed Enter and then Space to start every game. In games where Space is an action (Haunt: haunt), every run began with a free move, which skewed bot and persona results. Space is now pressed only while the game still reads as paused, or when there is no state to ask (tier 0). Found by AI persona playtests of Haunt.
 

@@ -1,6 +1,6 @@
 """playbench balance: knob sweeps on the real build, plus cost curves, model sims and payoff matrices.
 
-balance.py sweep <game_dir> --knob NAME [--values a,b,c] [--seeds N] [--seconds S]
+balance.py sweep <game_dir> --knob NAME [--values a,b,c] [--seeds N] [--seconds S] [--out DIR]
 balance.py costcurve <csv> [--cost COL] [--benefit a,b,c] [--id COL] [--out DIR]
 balance.py sim <model.py> [--runs 1000] [--seed 1] [--knob name=value]... [--out DIR]
 balance.py matrix <csv> [--iters 20000] [--out DIR]
@@ -39,12 +39,21 @@ def parse_knobs(text):
 
 def num(cell):
     try:
-        return float(cell)
+        return int(cell) if cell.lstrip("-").isdigit() else float(cell)
     except ValueError:
         return None  # placeholder like "?" or "<min>"; only matters if this knob is swept without --values
 
 
-def sweep(game_dir, knob, values=None, seeds=None, seconds=None, run=None):
+def values_arg(text):
+    """--values a,b,c: ints when every value is one (19, not 19.0, reaches the game and the table), else floats."""
+    try:
+        return [int(x) for x in text.split(",")]
+    except ValueError:
+        return [float(x) for x in text.split(",")]
+
+
+def sweep(game_dir, knob, values=None, seeds=None, seconds=None, run=None, out_dir=None):
+    """Writes balance/last.json and <out_dir or game/balance>/<stamp>-sweep-<knob>.md (the table); returns the result."""
     game = Path(game_dir)
     cfg = game / "studio.json"
     build_dir = json.loads(cfg.read_text(encoding="utf-8-sig")).get("build_dir", ".") if cfg.exists() else "."
@@ -59,6 +68,8 @@ def sweep(game_dir, knob, values=None, seeds=None, seconds=None, run=None):
         if k["min"] is None or k["max"] is None:
             die(f"knob '{knob}' needs numeric min and max in design/design.md, or pass --values a,b,c")
         values = [round(k["min"] + (k["max"] - k["min"]) * i / 4, 3) for i in range(5)]
+        if all(isinstance(x, int) for x in (k["min"], k["max"])) and all(v == int(v) for v in values):
+            values = [int(v) for v in values]  # an int knob stays int: 1..5, not 1.0..5.0
     build = os.path.join(str(game), build_dir)  # Godot too: playtest.run turns overrides into --name=value user args
     if run is None:
         sys.path.insert(0, str(Path(__file__).parent))
@@ -76,7 +87,9 @@ def sweep(game_dir, knob, values=None, seeds=None, seconds=None, run=None):
     last[knob] = {"at": datetime.datetime.now().isoformat(timespec="seconds"), "bot": "policy", "values": out}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(last, indent=1), encoding="utf-8")
-    return {"knob": knob, "values": out, "prev": prev}
+    res = {"knob": knob, "values": out, "prev": prev}
+    res["report"] = save(table(res), out_dir or game / "balance", f"sweep-{knob}")
+    return res
 
 
 def table(result):
@@ -320,7 +333,10 @@ def selftest():
         (Path(tmp) / "studio.json").write_text('{"build_dir": "."}', encoding="utf-8")
         r = sweep(tmp, "bat_speed", run=fake())
         rows = table(r).splitlines()[4:]
-        assert len(rows) == 5 and [c["value"] for c in calls] == [1.0, 2.0, 3.0, 4.0, 5.0], rows
+        assert len(rows) == 5 and [c["value"] for c in calls] == [1, 2, 3, 4, 5], rows
+        assert all(type(c["value"]) is int for c in calls) and rows[0].startswith("| 1 |"), rows  # 1, not 1.0
+        assert r["report"].name.endswith("-sweep-bat_speed.md") and r["report"].read_text("utf-8") == table(r) + "\n"
+        assert values_arg("19,20") == [19, 20] and values_arg("19,20.5") == [19.0, 20.5], values_arg("19,20")
         assert calls[0]["file"] == "data/enemies.csv" and calls[0]["key"] == "bat.speed"
         assert all(row.endswith("|  |") for row in rows), rows  # no previous run -> blank delta
         wins = [r["values"][v]["win_rate"] for v in r["values"]]
@@ -329,8 +345,8 @@ def selftest():
         assert json.loads(last.read_text())["bat_speed"]["bot"] == "policy"
         r2 = sweep(tmp, "bat_speed", run=fake(shift=-0.1))
         assert r2["prev"] and all(row.endswith("| -10 |") for row in table(r2).splitlines()[4:]), table(r2)
-        sweep(tmp, "spawn_every", values=[1.0], run=fake())
-        assert set(json.loads(last.read_text())) == {"bat_speed", "spawn_every"}
+        sw = sweep(tmp, "spawn_every", values=[1.0], run=fake(), out_dir=Path(tmp) / "elsewhere")
+        assert set(json.loads(last.read_text())) == {"bat_speed", "spawn_every"} and sw["report"].parent.name == "elsewhere"
         print("ok sweep_fake")
         try:
             sweep(tmp, "bat_speed", values=[1.0], run=fake(tier=1))
@@ -436,7 +452,7 @@ def main():
     s = sub.add_parser("sweep")
     s.add_argument("game_dir")
     s.add_argument("--knob", required=True)
-    s.add_argument("--values", type=lambda t: [float(x) for x in t.split(",")])
+    s.add_argument("--values", type=values_arg)
     s.add_argument("--seeds", type=int)
     s.add_argument("--seconds", type=float)
     c = sub.add_parser("costcurve")
@@ -454,12 +470,14 @@ def main():
     x.add_argument("--iters", type=int, default=20000)
     for q in (c, m, x):
         q.add_argument("--out")
+    s.add_argument("--out", help="report folder (default: <game_dir>/balance)")
     sub.add_parser("selftest")
     a = p.parse_args()
     if a.cmd == "selftest":
         return selftest()
     if a.cmd == "sweep":
-        return print(table(sweep(a.game_dir, a.knob, a.values, a.seeds, a.seconds)))
+        r = sweep(a.game_dir, a.knob, a.values, a.seeds, a.seconds, out_dir=a.out)
+        return print(f"{table(r)}\nREPORT={r['report']}")
     if getattr(a, "runs", 1) < 1 or getattr(a, "iters", 1) < 1:
         die("--runs and --iters must be at least 1")
     text = (costcurve(a.csv, a.cost, a.benefit, a.id) if a.cmd == "costcurve" else
